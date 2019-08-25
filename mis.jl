@@ -6,6 +6,8 @@ function mis1(graph::EliminateGraph, level::Int=0)
     else
         vs = vertices(graph)
         v = minx(v->degree(graph,v,vs), vs)
+        #v = minx(v->degree(graph,v), vs)
+        #graph\neighborcover(graph, neighborcover(graph,v,vs)[1], vs)
         #return 1 + maximum(y->(@show level, y, vs; mis1(graph\neighborcover(graph, y, vs), level+1)), neighborcover(graph, v, vs))
         return 1 + maximum(y->mis1(graph\neighborcover(graph, y, vs), level+1), neighborcover(graph, v, vs))
     end
@@ -29,33 +31,16 @@ graph = EliminateGraph([0 1 0 0 0;
                         0 1 0 1 0;
                         0 1 1 0 1;
                         0 0 0 1 0])
-mis1(graph)
 
-"""
-    copyltu!(A::AbstractMatrix) -> AbstractMatrix
+@test mis1(graph) == 3
 
-copy the lower triangular to upper triangular.
-"""
-function copyltu!(A::AbstractMatrix)
-    m, n = size(A)
-    for i=1:m
-        A[i,i] = real(A[i,i])
-        for j=i+1:n
-            @inbounds A[i,j] = conj(A[j,i])
-        end
-    end
-    A
-end
-
-function rand_egraph(nv::Int, density::Real)
-    tbl = rand(nv, nv) .< density
-    copyltu!(tbl)
-    for i=1:nv
-        tbl[i,i] = false
-    end
-    EliminateGraph(tbl)
-end
-
+# mask-copy version, 1.5 second
+using Random
+Random.seed!(2)
 eg = rand_egraph(60, 0.1)
+@time mis1(eg)
 
-mis1(eg)
+
+using Profile
+Profile.clear()
+@profile for i=1:10000 mis1(eg) end
