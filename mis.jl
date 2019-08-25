@@ -4,10 +4,14 @@ function mis1(graph::EliminateGraph, level::Int=0)
     if nv(graph) == 0
         return 0
     else
-        vs = vertices(graph)
-        v = minx(v->degree(graph,v,vs), vs)
-        #return 1 + maximum(y->(@show level, y, vs; mis1(graph\neighborcover(graph, y, vs), level+1)), neighborcover(graph, v, vs))
-        return 1 + maximum(y->mis1(graph\neighborcover(graph, y, vs), level+1), neighborcover(graph, v, vs))
+        v = minx(v->iseliminated(graph, v) ? 999999 : degree(graph,v), 1:nv0(graph))
+        res_ = maximum(NeighborCover(graph, v)) do y
+            eliminate!(graph, NeighborCover(graph, y))
+            ri = mis1(graph, level+1)
+            recover!(graph, NeighborCover(graph, y))
+            return ri
+        end
+        return 1 + res_
     end
 end
 
@@ -29,7 +33,7 @@ graph = EliminateGraph([0 1 0 0 0;
                         0 1 0 1 0;
                         0 1 1 0 1;
                         0 0 0 1 0])
-mis1(graph)
+@test mis1(graph) == 3
 
 """
     copyltu!(A::AbstractMatrix) -> AbstractMatrix
@@ -56,6 +60,9 @@ function rand_egraph(nv::Int, density::Real)
     EliminateGraph(tbl)
 end
 
+using Random
+Random.seed!(2)
 eg = rand_egraph(60, 0.1)
 
-mis1(eg)
+# Bool Matrix: 1.9s
+@time mis1(eg)

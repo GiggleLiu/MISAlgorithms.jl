@@ -1,6 +1,6 @@
 struct EliminateGraph
-    tbl::BitMatrix
-    mask::BitVector
+    tbl::Matrix{Bool}
+    mask::Vector{Bool}
 end
 
 nv0(eg::EliminateGraph) = size(eg.tbl, 1)
@@ -16,8 +16,8 @@ function Base.show(io::IO, eg::EliminateGraph)
     end
 end
 
-EliminateGraph(tbl::Matrix) = EliminateGraph(BitMatrix(tbl))
-EliminateGraph(tbl::BitMatrix) = EliminateGraph(tbl, BitVector(ones(Bool,size(tbl,1))))
+EliminateGraph(tbl::AbstractMatrix) = EliminateGraph(Matrix{Bool}(tbl))
+EliminateGraph(tbl::Matrix{Bool}) = EliminateGraph(tbl, ones(Bool,size(tbl,1)))
 
 function eliminate!(eg::EliminateGraph, i::Int)
     eg.mask[i] = false
@@ -43,8 +43,19 @@ end
     sum(vj->isconnected(eg,vi,vj), vertices)
 end
 
+@inline function degree(eg::EliminateGraph, vi::Int)
+    mapreduce(vj->!iseliminated(eg,vj) && isconnected(eg,vi,vj), +, 1:nv0(eg))
+end
+
 function recover!(eg::EliminateGraph, i::Int)
     eg.mask[i] = true
+    eg
+end
+
+function recover!(eg::EliminateGraph, vertices)
+    for i in vertices
+        eg.mask[i] = true
+    end
     eg
 end
 
@@ -63,6 +74,26 @@ function neighborcover(eg::EliminateGraph, i::Int, vertices)
     return filter(j->(i==j || isconnected(eg,j,i)), vertices)
 end
 
+function neighborcover(eg::EliminateGraph, i::Int)
+    return filter(j->!iseliminated(eg,j) && (i==j || isconnected(eg,j,i)), 1:nv0(eg))
+end
+
+struct NeighborCover
+    eg::EliminateGraph
+    i::Int
+end
+
+function Base.iterate(nc::NeighborCover, state=1)
+    eg = nc.eg
+    N = nv0(eg)
+    for j=state:N
+        if !iseliminated(eg,j) && (nc.i==j || isconnected(eg,j,nc.i))
+            return (j,j+1)
+        end
+    end
+    return nothing
+end
+
 using Test
 @testset "eliminate and recover" begin
     tbl = Bool[false true true false; true false true true; false true false true; true true true false]
@@ -70,6 +101,7 @@ using Test
     @show eg
     @test neighbors(eg, 1) == [2]
     @test neighborcover(eg, 1, vertices(eg)) == [1,2]
+    @test neighborcover(eg, 1) == [1,2]
     @test nv(eg) == 4
     eliminate!(eg, 2)
     eliminate!(eg, 3)
@@ -82,7 +114,9 @@ using Test
     @test vertices(eg2) == [1,4]
     @test neighbors(eg2, 1) == []
     @test degrees(eg) == [0, 1, 1]
+    @test [degree(eg,vi) for vi in vertices(eg)] == [0, 1, 1]
     @test degrees(eg2) == [0, 0]
     eg3 = eg2 \ (1,4)
     @test nv(eg3) == 0
+    @test recover!(eg3, (1,4)).mask == eg2.mask
 end
