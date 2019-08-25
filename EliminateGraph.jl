@@ -20,13 +20,13 @@ EliminateGraph(tbl::AbstractMatrix) = EliminateGraph(Matrix{Bool}(tbl))
 EliminateGraph(tbl::Matrix{Bool}) = EliminateGraph(tbl, ones(Bool,size(tbl,1)))
 
 function eliminate!(eg::EliminateGraph, i::Int)
-    eg.mask[i] = false
+    @inbounds eg.mask[i] = false
     eg
 end
 
 function eliminate!(eg::EliminateGraph, vertices)
     for i in vertices
-        eg.mask[i] = false
+        @inbounds eg.mask[i] = false
     end
     eg
 end
@@ -48,13 +48,13 @@ end
 end
 
 function recover!(eg::EliminateGraph, i::Int)
-    eg.mask[i] = true
+    @inbounds eg.mask[i] = true
     eg
 end
 
 function recover!(eg::EliminateGraph, vertices)
     for i in vertices
-        eg.mask[i] = true
+        @inbounds eg.mask[i] = true
     end
     eg
 end

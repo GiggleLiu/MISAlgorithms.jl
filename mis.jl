@@ -6,9 +6,10 @@ function mis1(graph::EliminateGraph, level::Int=0)
     else
         v = minx(v->iseliminated(graph, v) ? 999999 : degree(graph,v), 1:nv0(graph))
         res_ = maximum(NeighborCover(graph, v)) do y
-            eliminate!(graph, NeighborCover(graph, y))
+            cover = [NeighborCover(graph, y)...]
+            eliminate!(graph, cover)
             ri = mis1(graph, level+1)
-            recover!(graph, NeighborCover(graph, y))
+            recover!(graph, cover)
             return ri
         end
         return 1 + res_
