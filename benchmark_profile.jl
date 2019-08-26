@@ -7,6 +7,7 @@ eg = rand_egraph(60, 0.1)
 using BenchmarkTools
 #@benchmark neighborcover($eg, 2) seconds=1
 @time mis1(eg)
+@code_warntype mis1(eg)
 @benchmark mis1($eg) seconds=1
 
 

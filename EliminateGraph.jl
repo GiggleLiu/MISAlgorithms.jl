@@ -1,9 +1,27 @@
-struct EliminateGraph
+mutable struct EliminateGraph
     tbl::Matrix{Bool}
     vertices::Vector{Int}
+    ptr::Vector{Int}
+    level::Int
+    nv::Int
+end
+
+EliminateGraph(tbl::AbstractMatrix) = EliminateGraph(Matrix{Bool}(tbl))
+function EliminateGraph(tbl::Matrix{Bool})
+    N = size(tbl, 1)
+    vertices = collect(1:N)
+    ptr = zeros(Int,N)
+    EliminateGraph(tbl, vertices, ptr, 0, N)
 end
 
 nv0(eg::EliminateGraph) = size(eg.tbl, 1)
+Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy, eg.ptr|>copy, eg.level, eg.nv)
+
+vertices(eg::EliminateGraph) = view(eg.vertices,nv0(eg)-eg.nv+1:nv0(eg))
+eliminated_vertices(eg::EliminateGraph) = view(eg.vertices,1:nv0(eg)-eg.nv)
+iseliminated(eg::EliminateGraph, i::Int) = i in eliminated_vertices(eg)
+isconnected(eg::EliminateGraph, i::Int, j::Int) = @inbounds eg.tbl[i,j]
+nv(eg::EliminateGraph) = eg.nv
 
 function Base.show(io::IO, eg::EliminateGraph)
     N = nv0(eg)
@@ -17,32 +35,80 @@ function Base.show(io::IO, eg::EliminateGraph)
     end
 end
 
-EliminateGraph(tbl::AbstractMatrix) = EliminateGraph(Matrix{Bool}(tbl))
-EliminateGraph(tbl::Matrix{Bool}) = EliminateGraph(tbl, collect(1:size(tbl,1)))
-
 struct NeighborCover
     i::Int
 end
 
+@inline function unsafe_swap!(v::Vector, i::Int, j::Int)
+    @inbounds temp = v[i]
+    @inbounds v[i] = v[j]
+    @inbounds v[j] = temp
+end
+
 function eliminate!(eg::EliminateGraph, vi::Int)
-    for i in 1:nv(eg)
-        if vi == eg.vertices[i]
-            deleteat!(eg.vertices,i)
-            return eg
+    N = nv0(eg)
+    @inbounds iptr = eg.level == 0 ? 0 : eg.ptr[eg.level]
+    for j in N-eg.nv+1:N
+        @inbounds vj = eg.vertices[j]
+        if vj==vi
+            iptr += 1
+            eg.level += 1
+            @inbounds eg.ptr[eg.level] = iptr
+            unsafe_swap!(eg.vertices, j, iptr)
+            break
         end
     end
+    eg.nv -= 1
+    return eg
 end
 
 function eliminate!(eg::EliminateGraph, vertices)
+    N = nv0(eg)
+    @inbounds iptr = eg.level == 0 ? 0 : eg.ptr[eg.level]
     for vi in vertices
-        eliminate!(eg, vi)
+        for j in N-eg.nv+1:N
+            @inbounds vj = eg.vertices[j]
+            if vj==vi
+                iptr += 1
+                unsafe_swap!(eg.vertices, j, iptr)
+                break
+            end
+        end
     end
-    eg
+    eg.level += 1
+    eg.nv -= length(vertices)
+    @inbounds eg.ptr[eg.level] = iptr
+    return eg
 end
+
+function eliminate!(eg::EliminateGraph, nc::NeighborCover)
+    N = nv0(eg)
+    @inbounds iptr = eg.level == 0 ? 0 : eg.ptr[eg.level]
+    iptr0 = iptr
+    for i in N-eg.nv+1:N
+        @inbounds vi = eg.vertices[i]
+        (vi == nc.i || isconnected(eg, vi, nc.i)) || continue
+        for j in N-eg.nv+1:N
+            @inbounds vj = eg.vertices[j]
+            if vj==vi
+                iptr += 1
+                eg.nv -= 1
+                unsafe_swap!(eg.vertices, j, iptr)
+                break
+            end
+        end
+    end
+    eg.level += 1
+    @inbounds eg.ptr[eg.level] = iptr
+    return eg
+end
+
+eliminate(eg, vertices) = eliminate!(copy(eg), vertices)
 
 function neighborcover_mapreduce(func, red, eg::EliminateGraph, vi::Int)
     pre = func(vi)
-    for vj in eg.vertices
+    for j in nv0(eg)-eg.nv+1:nv0(eg)
+        @inbounds vj = eg.vertices[j]
         if isconnected(eg,vj,vi)
             # find a neighbor cover
             pre = red(pre, func(vj))
@@ -51,31 +117,11 @@ function neighborcover_mapreduce(func, red, eg::EliminateGraph, vi::Int)
     return pre
 end
 
-Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy)
-
-@inline function eliminate(eg::EliminateGraph, vs)
-    res = Int[]
-    @inbounds rmv = vs[1]
-    rmk = 1
-    for iv in eg.vertices
-        if iv == rmv
-            rmk+=1
-            rmk <= length(vs) && (rmv = @inbounds vs[rmk])
-        else
-            push!(res, iv)
-        end
-    end
-    EliminateGraph(eg.tbl, res)
-end
-
-@inline function eliminate(eg::EliminateGraph, vi::NeighborCover)
-    res = Int[]
-    for vj in eg.vertices
-        if !(vi.i==vj || isconnected(eg,vj,vi.i))
-            push!(res, vj)
-        end
-    end
-    return EliminateGraph(eg.tbl, res)
+@inline function eliminate(func, eg::EliminateGraph, vi)
+    eliminate!(eg, vi)
+    res = func(eg)
+    recover!(eg)
+    return res
 end
 
 Base.:\(eg::EliminateGraph, vertices) = eliminate(eg, vertices)
@@ -88,15 +134,12 @@ end
     sum(vj->isconnected(eg,vi,vj), vertices(eg))
 end
 
-function recover!(eg::EliminateGraph, vi::Int)
-    push!(eg.vertices, vi)
+function recover!(eg::EliminateGraph)
+    eg.nv += eg.ptr[eg.level] - (eg.level==1 ? 0 : eg.ptr[eg.level-1])
+    eg.level -= 1
     eg
 end
 
-vertices(eg::EliminateGraph) = eg.vertices
-iseliminated(eg::EliminateGraph, i::Int) = !(i in vertices(eg))
-isconnected(eg::EliminateGraph, i::Int, j::Int) = @inbounds eg.tbl[i,j]
-nv(eg::EliminateGraph) = length(vertices(eg))
 function neighbors(eg::EliminateGraph, i::Int)
     return filter(j->!iseliminated(eg,j) && isconnected(eg,j,i), 1:nv0(eg))
 end
@@ -119,22 +162,39 @@ using Test
     eliminate!(eg, 2)
     eliminate!(eg, 3)
     @test nv(eg) == 2
-    recover!(eg, 3)
+    recover!(eg)
     @test nv(eg) == 3
     eg2 = eg \ 3
     @test nv(eg) == 3
     @test nv(eg2) == 2
     @test vertices(eg2) == [1,4]
     @test neighbors(eg2, 1) == []
-    @test degrees(eg) == [0, 1, 1]
+    @test degrees(eg) == [1, 0, 1]
     @test degrees(eg2) == [0, 0]
     eg3 = eg2 \ (1,4)
     @test nv(eg3) == 0
 
     tbl = Bool[false true true false; true false true true; false true false true; true true true false]
     eg = EliminateGraph(tbl .& tbl')
+    @show eg
+    res = eliminate(eg, 3) do eg
+        nv(eg)
+    end # do
+    @test res == 3
+
+    @show eg
     eg4 = eg \ NeighborCover(1)
+    @show eg4
     @test vertices(eg4) == [3,4]
+
+    res = eliminate(eg, (3,4)) do eg
+        eliminate(eg, (1,2)) do eg
+            nv(eg)
+        end
+    end
+    @test res == 0
+    @test nv(eg) == 4
+    @test eg.level == 0
 end
 
 """
