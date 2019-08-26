@@ -4,12 +4,8 @@ function mis1(graph::EliminateGraph, level::Int=0)
     if nv(graph) == 0
         return 0
     else
-        vs = vertices(graph)
-        v = minx(v->degree(graph,v,vs), vs)
-        #v = minx(v->degree(graph,v), vs)
-        #graph\neighborcover(graph, neighborcover(graph,v,vs)[1], vs)
-        #return 1 + maximum(y->(@show level, y, vs; mis1(graph\neighborcover(graph, y, vs), level+1)), neighborcover(graph, v, vs))
-        return 1 + maximum(y->mis1(graph\neighborcover(graph, y, vs), level+1), neighborcover(graph, v, vs))
+        v = minx(v->degree(graph,v), graph.vertices)
+        return 1 + maximum(y->mis1(graph\neighborcover(graph, y), level+1), neighborcover(graph, v))
     end
 end
 
@@ -37,10 +33,12 @@ graph = EliminateGraph([0 1 0 0 0;
 # mask-copy version, 1.5 second
 using Random
 Random.seed!(2)
-eg = rand_egraph(60, 0.1)
-@time mis1(eg)
+eg = rand_egraph(50, 0.1)
+using BenchmarkTools
+@benchmark neighborcover($eg, 2) seconds=1
 
 
 using Profile
 Profile.clear()
-@profile for i=1:10000 mis1(eg) end
+Profile.init(delay=1e-3)
+@profile neighborcover(eg, 2)

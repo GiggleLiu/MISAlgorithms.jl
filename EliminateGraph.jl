@@ -37,22 +37,45 @@ function eliminate!(eg::EliminateGraph, vertices)
 end
 
 Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy)
-function eliminate(eg::EliminateGraph, vertices)
-    EliminateGraph(eg.tbl, filter(v->!(v in vertices), eg.vertices))
+
+@inline function eliminate(eg::EliminateGraph, vertices)
+    vs = Int[]
+    @inbounds rmv = vertices[1]
+    rmk = 1
+    for iv in eg.vertices
+        if iv == rmv
+            rmk+=1
+            rmk <= length(vertices) && (rmv = @inbounds vertices[rmk])
+        else
+            push!(vs, iv)
+        end
+    end
+    EliminateGraph(eg.tbl, vs)
+end
+
+@inline function eliminate(eg::EliminateGraph, vertices)
+    vs = Int[]
+    @inbounds rmv = vertices[1]
+    rmk = 1
+    for iv in eg.vertices
+        if iv == rmv
+            rmk+=1
+            rmk <= length(vertices) && (rmv = @inbounds vertices[rmk])
+        else
+            push!(vs, iv)
+        end
+    end
+    EliminateGraph(eg.tbl, vs)
 end
 
 Base.:\(eg::EliminateGraph, vertices) = eliminate(eg, vertices)
 degrees(eg::EliminateGraph) = degrees(eg, vertices(eg))
-function degrees(eg::EliminateGraph, vertices)
-    map(vi->degree(eg, vi, vertices), vertices)
-end
-
-@inline function degree(eg::EliminateGraph, vi::Int, vertices)
-    sum(vj->isconnected(eg,vi,vj), vertices)
+function degrees(eg::EliminateGraph)
+    map(vi->degree(eg, vi), vertices(eg))
 end
 
 @inline function degree(eg::EliminateGraph, vi::Int)
-    sum(vj->!iseliminated(eg, vj) && isconnected(eg,vi,vj), 1:nv0(eg))
+    sum(vj->isconnected(eg,vi,vj), vertices(eg))
 end
 
 function recover!(eg::EliminateGraph, vi::Int)
@@ -61,18 +84,18 @@ function recover!(eg::EliminateGraph, vi::Int)
 end
 
 vertices(eg::EliminateGraph) = eg.vertices
-iseliminated(eg::EliminateGraph, i::Int) = !(i in eg.vertices)
+iseliminated(eg::EliminateGraph, i::Int) = !(i in vertices(eg))
 isconnected(eg::EliminateGraph, i::Int, j::Int) = @inbounds eg.tbl[i,j]
-nv(eg::EliminateGraph) = length(eg.vertices)
+nv(eg::EliminateGraph) = length(vertices(eg))
 function neighbors(eg::EliminateGraph, i::Int)
     return filter(j->!iseliminated(eg,j) && isconnected(eg,j,i), 1:nv0(eg))
 end
-function neighbors(eg::EliminateGraph, i::Int, vertices)
-    return filter(j->isconnected(eg,j,i), vertices)
+function neighbors(eg::EliminateGraph, i::Int)
+    return filter(j->isconnected(eg,j,i), vertices(eg))
 end
 
-function neighborcover(eg::EliminateGraph, i::Int, vertices)
-    return filter(j->i==j || isconnected(eg,j,i), vertices)
+@inline function neighborcover(eg::EliminateGraph, vi::Int)
+    return filter(vj->isconnected(eg,vj,vi) || vi==vj, vertices(eg))
 end
 
 using Test
@@ -81,7 +104,7 @@ using Test
     eg = EliminateGraph(tbl .& tbl')
     @show eg
     @test neighbors(eg, 1) == [2]
-    @test neighborcover(eg, 1, vertices(eg)) == [1,2]
+    @test neighborcover(eg, 1) == [1,2]
     @test nv(eg) == 4
     eliminate!(eg, 2)
     eliminate!(eg, 3)
