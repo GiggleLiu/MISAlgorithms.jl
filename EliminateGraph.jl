@@ -20,6 +20,23 @@ end
 EliminateGraph(tbl::AbstractMatrix) = EliminateGraph(Matrix{Bool}(tbl))
 EliminateGraph(tbl::Matrix{Bool}) = EliminateGraph(tbl, collect(1:size(tbl,1)))
 
+struct NeighborCover
+    eg::EliminateGraph
+    i::Int
+end
+
+function Base.iterate(nc::NeighborCover, state=1)
+    eg = nc.eg
+    N = nv(eg)
+    for j=state:N
+        vj = vertices(eg)[j]
+        if nc.i==vj || isconnected(eg,vj,nc.i)
+            return (vj,j+1)
+        end
+    end
+    return nothing
+end
+
 function eliminate!(eg::EliminateGraph, vi::Int)
     for i in 1:nv(eg)
         if vi == eg.vertices[i]
@@ -39,18 +56,18 @@ end
 Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy)
 
 @inline function eliminate(eg::EliminateGraph, vs)
-    vs = Int[]
-    @inbounds rmv = vertices[1]
+    res = Int[]
+    @inbounds rmv = vs[1]
     rmk = 1
     for iv in eg.vertices
         if iv == rmv
             rmk+=1
-            rmk <= length(vertices) && (rmv = @inbounds vertices[rmk])
+            rmk <= length(vs) && (rmv = @inbounds vs[rmk])
         else
-            push!(vs, iv)
+            push!(res, iv)
         end
     end
-    EliminateGraph(eg.tbl, vs)
+    EliminateGraph(eg.tbl, res)
 end
 
 @inline function eliminate(eg::EliminateGraph, nc::NeighborCover)
@@ -102,23 +119,6 @@ end
 
 @inline function neighborcover(eg::EliminateGraph, vi::Int)
     return filter(vj->isconnected(eg,vj,vi) || vi==vj, vertices(eg))
-end
-
-struct NeighborCover
-    eg::EliminateGraph
-    i::Int
-end
-
-function Base.iterate(nc::NeighborCover, state=1)
-    eg = nc.eg
-    N = nv(eg)
-    for j=state:N
-        vj = vertices(eg)[j]
-        if nc.i==vj || isconnected(eg,vj,nc.i)
-            return (vj,j+1)
-        end
-    end
-    return nothing
 end
 
 using Test
