@@ -38,7 +38,7 @@ end
 
 Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy)
 
-@inline function eliminate(eg::EliminateGraph, vertices)
+@inline function eliminate(eg::EliminateGraph, vs)
     vs = Int[]
     @inbounds rmv = vertices[1]
     rmk = 1
@@ -53,19 +53,25 @@ Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy)
     EliminateGraph(eg.tbl, vs)
 end
 
-@inline function eliminate(eg::EliminateGraph, vertices)
-    vs = Int[]
-    @inbounds rmv = vertices[1]
-    rmk = 1
-    for iv in eg.vertices
-        if iv == rmv
-            rmk+=1
-            rmk <= length(vertices) && (rmv = @inbounds vertices[rmk])
-        else
-            push!(vs, iv)
+@inline function eliminate(eg::EliminateGraph, nc::NeighborCover)
+    vi = nc.i
+    res = Int[]
+    for vj in eg.vertices
+        if !(vi==vj || isconnected(eg,vj,vi))
+            push!(res, vj)
         end
     end
-    EliminateGraph(eg.tbl, vs)
+    return EliminateGraph(eg.tbl, res)
+end
+
+@inline function eliminate_neighborcover(eg::EliminateGraph, vi)
+    res = Int[]
+    for vj in eg.vertices
+        if !(vi==vj || isconnected(eg,vj,vi))
+            push!(res, vj)
+        end
+    end
+    return EliminateGraph(eg.tbl, res)
 end
 
 Base.:\(eg::EliminateGraph, vertices) = eliminate(eg, vertices)
@@ -98,6 +104,23 @@ end
     return filter(vj->isconnected(eg,vj,vi) || vi==vj, vertices(eg))
 end
 
+struct NeighborCover
+    eg::EliminateGraph
+    i::Int
+end
+
+function Base.iterate(nc::NeighborCover, state=1)
+    eg = nc.eg
+    N = nv(eg)
+    for j=state:N
+        vj = vertices(eg)[j]
+        if nc.i==vj || isconnected(eg,vj,nc.i)
+            return (vj,j+1)
+        end
+    end
+    return nothing
+end
+
 using Test
 @testset "eliminate and recover" begin
     tbl = Bool[false true true false; true false true true; false true false true; true true true false]
@@ -105,6 +128,7 @@ using Test
     @show eg
     @test neighbors(eg, 1) == [2]
     @test neighborcover(eg, 1) == [1,2]
+    @test [NeighborCover(eg, 1)...] == [1,2]
     @test nv(eg) == 4
     eliminate!(eg, 2)
     eliminate!(eg, 3)
@@ -120,6 +144,11 @@ using Test
     @test degrees(eg2) == [0, 0]
     eg3 = eg2 \ (1,4)
     @test nv(eg3) == 0
+
+    tbl = Bool[false true true false; true false true true; false true false true; true true true false]
+    eg = EliminateGraph(tbl .& tbl')
+    eg4 = eg \ NeighborCover(eg, 1)
+    @test vertices(eg4) == [3,4]
 end
 
 """
