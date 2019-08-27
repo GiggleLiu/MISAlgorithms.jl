@@ -1,5 +1,10 @@
 export eliminate, eliminate!, recover!
 
+"""
+    eliminate!(eg::EliminateGraph, vertices)
+
+Eliminate vertices from a graph.
+"""
 function eliminate!(eg::EliminateGraph, vi::Int)
     N = nv0(eg)
     @inbounds iptr = eg.level == 0 ? 0 : eg.ptr[eg.level]
@@ -58,6 +63,12 @@ function eliminate!(eg::EliminateGraph, nc::NeighborCover)
     return eg
 end
 
+"""
+    eliminate([func], eg::EliminateGraph, vertices)
+    eg \\ vertices
+
+Eliminate vertices from a graph, return the value of `func(eliminated_graph)` if `func` provided.
+"""
 eliminate(eg, vertices) = eliminate!(copy(eg), vertices)
 
 @inline function eliminate(func, eg::EliminateGraph, vi)
@@ -69,6 +80,7 @@ end
 
 Base.:\(eg::EliminateGraph, vertices) = eliminate(eg, vertices)
 
+"""restore eliminated vertices for a level (one call of elimintion function)."""
 function recover!(eg::EliminateGraph)
     @inbounds eg.nv += eg.ptr[eg.level] - (eg.level==1 ? 0 : eg.ptr[eg.level-1])
     eg.level -= 1

@@ -1,9 +1,19 @@
+"""
+    unsafe_swap!(v::Vector, i::Int, j::Int) -> Vector
+
+swap `i`th and `j`th elements of a vector.
+"""
 @inline function unsafe_swap!(v::Vector, i::Int, j::Int)
     @inbounds temp = v[i]
     @inbounds v[i] = v[j]
     @inbounds v[j] = temp
 end
 
+"""
+    minx(f, vec)
+
+Find the element in `vec` that gives minimum `f(x)`.
+"""
 function minx(f, vec)
     local xmin = vec[1]
     fmin = f(xmin)

@@ -1,15 +1,27 @@
 export neighbors, degrees, degree, mindegree_vertex, maxdegree_vertex, minmaxdegree_vertex
 
+"""
+    neighbors(eg::EliminateGraph, i::Int)
+
+Get neighbors of vertex `i`.
+"""
 function neighbors(eg::EliminateGraph, i::Int)
     return filter(j->isconnected(eg,j,i), vertices(eg))
 end
 
+"""Get degrees of all vertices in a graph."""
 degrees(eg::EliminateGraph) = degree.(Ref(eg), vertices(eg))
 
+"""
+    neighbors(eg::EliminateGraph, i::Int)
+
+Get degree of vertex `i`.
+"""
 @inline function degree(eg::EliminateGraph, vi::Int)
     sum(vj->isconnected(eg,vi,vj), vertices(eg))
 end
 
+"""find `(vertex, degree)` with minimum degree of a graph."""
 function mindegree_vertex(eg::EliminateGraph)
     N = nv(eg)
     dmin = 999999
@@ -27,6 +39,7 @@ function mindegree_vertex(eg::EliminateGraph)
     return vmin, dmin
 end
 
+"""find `(min_degree_vertex, max_degree_vertex, min_degree, max_degree)` of a graph."""
 function minmaxdegree_vertex(eg::EliminateGraph)
     N = nv(eg)
     dmin = 999999
@@ -50,6 +63,7 @@ function minmaxdegree_vertex(eg::EliminateGraph)
     return vmin, vmax, dmin, dmax
 end
 
+"""find `(vertex, degree)` with maximum degree of a graph."""
 function maxdegree_vertex(eg::EliminateGraph)
     N = nv(eg)
     dmax = 0

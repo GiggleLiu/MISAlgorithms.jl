@@ -1,6 +1,14 @@
-export EliminateGraph, rand_egraph, refresh
+export EliminateGraph, rand_eg, refresh
 export nv0, nv, isconnected
 
+"""
+    EliminateGraph
+    EliminateGraph(tbl::AbstractMatrix) -> EliminateGraph
+
+A graph type for algorithms that involve node elimination.
+With this type, vertex elimination and recover do not allocate.
+`tbl` in the constructor is a boolean table for connection.
+"""
 mutable struct EliminateGraph
     tbl::Matrix{Bool}
     vertices::Vector{Int}
@@ -17,12 +25,23 @@ function EliminateGraph(tbl::Matrix{Bool})
     EliminateGraph(tbl, vertices, ptr, 0, N)
 end
 
-nv0(eg::EliminateGraph) = size(eg.tbl, 1)
 Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy, eg.ptr|>copy, eg.level, eg.nv)
+
+"""initial size of a `EliminateGraph`."""
+nv0(eg::EliminateGraph) = size(eg.tbl, 1)
+"""current size of a `EliminateGraph`."""
+nv(eg::EliminateGraph) = eg.nv
+
+"""undo elimination for a `EliminateGraph`."""
 refresh(eg::EliminateGraph) = EliminateGraph(eg.tbl)
 
+"""
+    isconnected(eg::EliminateGraph, i::Int, j::Int) -> Bool
+
+Return true if `i`, `j` are connected in `eg`.
+Note: This function does not check `i`, `j` out of bound error!
+"""
 isconnected(eg::EliminateGraph, i::Int, j::Int) = @inbounds eg.tbl[i,j]
-nv(eg::EliminateGraph) = eg.nv
 
 function Base.show(io::IO, eg::EliminateGraph)
     N = nv0(eg)
@@ -36,7 +55,12 @@ function Base.show(io::IO, eg::EliminateGraph)
     end
 end
 
-function rand_egraph(nv::Int, density::Real)
+"""
+    rand_eg(nv::Int, density::Real) -> EliminateGraph
+
+Generate a random `EliminateGraph`.
+"""
+function rand_eg(nv::Int, density::Real)
     tbl = rand(nv, nv) .< density
     copyltu!(tbl)
     for i=1:nv
@@ -47,19 +71,38 @@ end
 
 export Vertices, vertices, EliminatedVertices, eliminated_vertices, iseliminated
 
+"""
+    Vertices{GT}<:AbstractArray{Int,1}
+
+Vertex enumerator for a graph.
+"""
 struct Vertices{GT}<:AbstractArray{Int,1}
     eg::GT
 end
+"""vertices of a graph."""
 vertices(eg::EliminateGraph) = Vertices(eg)
 Base.length(vs::Vertices) = vs.eg.nv
 Base.getindex(vs::Vertices, i::Int) = vs.eg.vertices[end-vs.eg.nv+i]
 
+"""
+    EliminatedVertices{GT}<:AbstractArray{Int,1}
+
+Eliminated vertex enumerator for a graph.
+"""
 struct EliminatedVertices{GT}<:AbstractArray{Int,1}
     eg::GT
 end
 Base.length(vs::EliminatedVertices) = nv0(vs.eg)-vs.eg.nv
 Base.getindex(vs::EliminatedVertices, i::Int) = vs.eg.vertices[i]
+
+"""eliminated vertices of a `EliminateGraph`."""
 eliminated_vertices(eg::EliminateGraph) = EliminatedVertices(eg)
+
+"""
+    iseliminated(eg::EliminateGraph, i::Int) -> Bool
+
+Return true if a vertex of a `EliminateGraph` is eliminated.
+"""
 iseliminated(eg::EliminateGraph, i::Int) = i in eliminated_vertices(eg)
 
 for V in [:Vertices, :EliminatedVertices]
@@ -83,6 +126,12 @@ for V in [:Vertices, :EliminatedVertices]
 end
 
 export neighborcover, neighborcover_mapreduce, mirrorcover
+
+"""
+    neighborcover(eg::EliminateGraph, vi::Int) -> EliminateGraph
+
+Return `vi` and its neighbors.
+"""
 @inline function neighborcover(eg::EliminateGraph, vi::Int)
     return filter(vj->isconnected(eg,vj,vi) || vi==vj, vertices(eg))
 end

@@ -1,5 +1,8 @@
 export mis1
 
+"""
+Solving MIS problem with simple branching algorithm.
+"""
 function mis1(eg::EliminateGraph)
     N = nv(eg)
     if N == 0

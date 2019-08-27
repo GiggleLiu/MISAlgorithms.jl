@@ -2,7 +2,7 @@ using Test
 using MISAlgorithms
 
 @testset "constructors" begin
-    eg = rand_egraph(10, 0.5)
+    eg = rand_eg(10, 0.5)
     @test eg isa EliminateGraph
     @test nv(eg) == nv0(eg) == 10
 end

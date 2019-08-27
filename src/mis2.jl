@@ -1,5 +1,8 @@
 export mis2
 
+"""
+Solving MIS problem with sofisticated branching algorithm.
+"""
 function mis2(graph::EliminateGraph, level::Int=0)
     if nv(graph) == 0
         return 0
