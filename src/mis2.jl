@@ -1,15 +1,4 @@
-include("utils.jl")
-include("EliminateGraph.jl")
-
-function mis1(eg::EliminateGraph)
-    N = nv(eg)
-    if N == 0
-        return 0
-    else
-        vmin, dmin = mindegree_vertex(eg)
-        return 1 + neighborcover_mapreduce(y->eliminate(mis1, eg, NeighborCover(y)), max, eg, vmin)
-    end
-end
+export mis2
 
 function mis2(graph::EliminateGraph, level::Int=0)
     if nv(graph) == 0
@@ -75,17 +64,4 @@ function mis2(graph::EliminateGraph, level::Int=0)
             end
         end
     end
-end
-
-@testset "mis1" begin
-    @test minx(x->x^2, [2,-1, 3]) == -1
-
-    graph = EliminateGraph([0 1 0 0 0;
-                            1 0 1 1 0;
-                            0 1 0 1 0;
-                            0 1 1 0 1;
-                            0 0 0 1 0])
-
-    @test mis1(graph) == 3
-    #@test mis2(graph) == 3
 end
