@@ -16,9 +16,10 @@ end
 
 nv0(eg::EliminateGraph) = size(eg.tbl, 1)
 Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy, eg.ptr|>copy, eg.level, eg.nv)
+refresh(eg::EliminateGraph) = EliminateGraph(eg.tbl)
 
-vertices(eg::EliminateGraph) = view(eg.vertices,nv0(eg)-eg.nv+1:nv0(eg))
-eliminated_vertices(eg::EliminateGraph) = view(eg.vertices,1:nv0(eg)-eg.nv)
+vertices(eg::EliminateGraph) = Vertices(eg)
+eliminated_vertices(eg::EliminateGraph) = EliminatedVertices(eg)
 iseliminated(eg::EliminateGraph, i::Int) = i in eliminated_vertices(eg)
 isconnected(eg::EliminateGraph, i::Int, j::Int) = @inbounds eg.tbl[i,j]
 nv(eg::EliminateGraph) = eg.nv
@@ -62,10 +63,10 @@ function eliminate!(eg::EliminateGraph, vi::Int)
     return eg
 end
 
-function eliminate!(eg::EliminateGraph, vertices)
+function eliminate!(eg::EliminateGraph, vs)
     N = nv0(eg)
     @inbounds iptr = eg.level == 0 ? 0 : eg.ptr[eg.level]
-    for vi in vertices
+    for vi in vs
         for j in N-eg.nv+1:N
             @inbounds vj = eg.vertices[j]
             if vj==vi
@@ -76,7 +77,7 @@ function eliminate!(eg::EliminateGraph, vertices)
         end
     end
     eg.level += 1
-    eg.nv -= length(vertices)
+    eg.nv -= length(vs)
     @inbounds eg.ptr[eg.level] = iptr
     return eg
 end
@@ -105,18 +106,6 @@ end
 
 eliminate(eg, vertices) = eliminate!(copy(eg), vertices)
 
-function neighborcover_mapreduce(func, red, eg::EliminateGraph, vi::Int)
-    pre = func(vi)
-    for j in nv0(eg)-eg.nv+1:nv0(eg)
-        @inbounds vj = eg.vertices[j]
-        if isconnected(eg,vj,vi)
-            # find a neighbor cover
-            pre = red(pre, func(vj))
-        end
-    end
-    return pre
-end
-
 @inline function eliminate(func, eg::EliminateGraph, vi)
     eliminate!(eg, vi)
     res = func(eg)
@@ -135,7 +124,7 @@ end
 end
 
 function recover!(eg::EliminateGraph)
-    eg.nv += eg.ptr[eg.level] - (eg.level==1 ? 0 : eg.ptr[eg.level-1])
+    @inbounds eg.nv += eg.ptr[eg.level] - (eg.level==1 ? 0 : eg.ptr[eg.level-1])
     eg.level -= 1
     eg
 end
@@ -149,6 +138,117 @@ end
 
 @inline function neighborcover(eg::EliminateGraph, vi::Int)
     return filter(vj->isconnected(eg,vj,vi) || vi==vj, vertices(eg))
+end
+
+function neighborcover_mapreduce(func, red, eg::EliminateGraph, vi::Int)
+    pre = func(vi)
+    for vj in vertices(eg)
+        if isconnected(eg,vj,vi)
+            # find a neighbor cover
+            pre = red(pre, func(vj))
+        end
+    end
+    return pre
+end
+
+struct Vertices{GT}<:AbstractArray{Int,1}
+    eg::GT
+end
+
+Base.length(vs::Vertices) = vs.eg.nv
+Base.size(vs::Vertices) = (length(vs),)
+Base.size(vs::Vertices, i::Int) = i==1 ? length(vs) : throw(DimensionMismatch(""))
+Base.eltype(vs::Vertices) = Int
+Base.IteratorEltype(::Type{Vertices}) = Base.HasEltype()
+Base.IteratorSize(::Type{Vertices}) = Base.HasLength()
+Base.eltype(vs::Type{Vertices}) = Int
+
+function Base.iterate(vs::Vertices, state=1)
+    eg = vs.eg
+    if state > eg.nv
+        return nothing
+    else
+        @inbounds vi = eg.vertices[end-eg.nv+state]
+        return vi, state+1
+    end
+end
+
+Base.getindex(vs::Vertices, i::Int) = vs.eg.vertices[end-vs.eg.nv+i]
+
+struct EliminatedVertices{GT}<:AbstractArray{Int,1}
+    eg::GT
+end
+
+Base.length(vs::EliminatedVertices) = nv0(vs.eg)-vs.eg.nv
+Base.size(vs::EliminatedVertices) = (length(vs),)
+Base.size(vs::EliminatedVertices, i::Int) = i==1 ? length(vs) : throw(DimensionMismatch(""))
+Base.eltype(vs::EliminatedVertices) = Int
+
+function Base.iterate(vs::EliminatedVertices, state=1)
+    eg = vs.eg
+    if state > length(vs)
+        return nothing
+    else
+        @inbounds vi = eg.vertices[state]
+        return vi, state+1
+    end
+end
+
+function mindegree_vertex(eg::EliminateGraph)
+    N = nv(eg)
+    dmin = 999999
+    vmin = 0
+    for vj in vertices(eg)
+        dj = 0
+        for vi in vertices(eg)
+            dj += isconnected(eg,vi,vj)
+        end
+        if dj < dmin
+            dmin = dj
+            vmin = vj
+        end
+    end
+    return vmin, dmin
+end
+
+function minmaxdegree_vertex(eg::EliminateGraph)
+    N = nv(eg)
+    dmin = 999999
+    dmax = 0
+    vmin = 0
+    vmax = 0
+    for vj in vertices(eg)
+        dj = 0
+        for vi in vertices(eg)
+            dj += isconnected(eg,vi,vj)
+        end
+        if dj < dmin
+            dmin = dj
+            vmin = vj
+        end
+        if dj > dmax
+            dmax = dj
+            vmax = vj
+        end
+    end
+    return vmin, vmax, dmin, dmax
+end
+
+function maxdegree_vertex(eg::EliminateGraph)
+    N = nv(eg)
+    dmax = 0
+    vmax = 0
+    for vj in vertices(eg)
+        dj = 0
+        for vi in vertices(eg)
+            dj += isconnected(eg,vi,vj)
+        end
+        if dj > dmax
+            dmax = dj
+            vmax = vj
+        end
+    end
+    return vmax, dmax
 end
 
 using Test
@@ -195,6 +295,17 @@ using Test
     @test res == 0
     @test nv(eg) == 4
     @test eg.level == 0
+
+    vs = Vertices(eg)
+    @test [vs...] == vertices(eg)
+    @test vs[3] == vertices(eg)[3]
+    vmin, dmin = mindegree_vertex(eg)
+    @test degree(eg, vmin) == minimum(degrees(eg)) == dmin
+    vmax, dmax = maxdegree_vertex(eg)
+    @test degree(eg, vmax) == maximum(degrees(eg)) == dmax
+    vmin, vmax, dmin, dmax = minmaxdegree_vertex(eg)
+    @test degree(eg,vmin) == minimum(degrees(eg)) == dmin
+    @test degree(eg,vmax) == maximum(degrees(eg)) == dmax
 end
 
 """
