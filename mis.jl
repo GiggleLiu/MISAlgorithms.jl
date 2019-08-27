@@ -26,9 +26,12 @@ function mis2(graph::EliminateGraph, level::Int=0)
                 sn = SecondNeighbors(eg, vmin)
                 if length(sn) == 1
                     w = sn[1]
-                    return max(2+eliminate(mis2, eg, NeighborCover(w) ∪ SecondNeighborCover(v)))
+                    return max(2+eliminate(mis2, eg, NeighborCover(w) ∪ SecondNeighborCover(v)),
+                                2+eliminate(mis2, eg, SecondNeighborCover(v)),
+                    )
                 elseif length(sn) > 1
-                    return max(eliminate(mis2, eg, NeighborCover(vmin)), eliminate(mis2, eg, MirrorCover(vmin)))
+                    return max(eliminate(mis2, eg, NeighborCover(vmin)),
+                                eliminate(mis2, eg, MirrorCover(vmin)))
                 end
                 # NOTE: where is length(sn) == 0?
             end
@@ -42,16 +45,17 @@ function mis2(graph::EliminateGraph, level::Int=0)
                 else
                     return max(1+eliminate(mis2, eg, NeighborCover(vmin)),
                                 2 + eliminate(mis2, eg, MirrorCover(a, b)),
-                                2 + eliminate(mis2, eg, MirrorCover(a, c) ∪ b),
-                                2 + eliminate(mis2, eg, MirrorCover(b, c) ∪ a),
+                                2 + eliminate(mis2, eg, MirrorCover(a, c) ∪ Vertex(b)),
+                                2 + eliminate(mis2, eg, MirrorCover(b, c) ∪ Vertex(a)),
                                 )
+                end
             elseif nedge == 3
                 return 1 + eliminate(mis2, eg, NeighborCover(vmin))
             else
                 return max(1 + eliminate(mis2, eg, NeighborCover(vmin)),
                             eliminate(mis2, eg, MirrorCover(vmin)))
             end
-        else
+        else # DONE
             vmax, degmax = maxdegree_vertex(eg)
             if degmax >= 6 # DONE
                 return max(1+eliminate(mis2, NeighborCover(vmax)),
@@ -62,11 +66,11 @@ function mis2(graph::EliminateGraph, level::Int=0)
             elseif dmin == dmax  # DONE
                 return max(1+eliminate(mis2, eg, NeighborCover(vmax)),
                             eliminate(mis2, eg, MirrorCover(vmax)))
-            else # DONE
+            else
                 v4, v5 = adjacent45(eg)
                 return max(1+eliminate(mis2, eg, NeighborCover(v5)),
                             1+eliminate(mis2, eg, MirrorCover(v5) ∪ NeighborCover(v4)),
-                            eliminate(mis2, eg, MirrorCover(v5) ∪ v4)
+                            eliminate(mis2, eg, MirrorCover(v5) ∪ Vertex(v4))
                             )
             end
         end

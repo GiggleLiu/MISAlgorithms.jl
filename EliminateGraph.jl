@@ -1,3 +1,4 @@
+abstract type AbstractVertexSet end
 mutable struct EliminateGraph
     tbl::Matrix{Bool}
     vertices::Vector{Int}
@@ -36,7 +37,7 @@ function Base.show(io::IO, eg::EliminateGraph)
     end
 end
 
-struct NeighborCover
+struct NeighborCover <: VertexSet
     i::Int
 end
 
@@ -249,6 +250,20 @@ function maxdegree_vertex(eg::EliminateGraph)
         end
     end
     return vmax, dmax
+end
+
+struct Vertex<:AbstractVertexSet
+    i::Int
+end
+
+struct UnionOf{TA, TB}<:AbstractVertexSet
+    A::TA
+    B::TB
+end
+∪(A::Union{Vertex, NeighborCover, MirrorCover}, B::)
+
+function mirrors(eg, v)
+    Vertex()
 end
 
 using Test
