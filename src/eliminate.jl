@@ -86,3 +86,11 @@ function recover!(eg::EliminateGraph)
     eg.level -= 1
     eg
 end
+
+function eliminate!(eg::EliminateGraph, nc::MirrorCover)
+    eliminate!(eg, mirrorcover(eg, nc.i))
+end
+
+function eliminate!(eg::EliminateGraph, nc::UnionOf)
+    eliminate!(eg, mirrorcover(eg, nc.i))
+end

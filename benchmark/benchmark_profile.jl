@@ -1,4 +1,4 @@
-include("mis.jl")
+using MISAlgorithms
 
 # mask-copy version, 1.5 second
 using Random

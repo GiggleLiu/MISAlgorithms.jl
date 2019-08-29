@@ -1,25 +1,35 @@
-export AbstractVertexSet, NeighborCover, MirrorCover, Vertex, UnionOf, Vertex
+export SetProperty, CLOSED, OPEN
+export AbstractVertexSet, Neighbors, Mirrors, Vertex, UnionOf
+export NeighborCover, MirrorCover, NearestNeighbors
 
 # Vertex Set Notations
 abstract type AbstractVertexSet end
 
-"""
-    NeighborCover <: AbstractVertexSet
+abstract type SetProperty end
+struct CLOSED <: SetProperty end
+struct OPEN <: SetProperty end
 
-Neighbors and itself.
 """
-struct NeighborCover <: AbstractVertexSet
+    Neighbors{SP<:SetProperty, NTH} <: AbstractVertexSet
+
+Neighbors, if `SP` is `CLOSED`, then this set contains vertex itself.
+"""
+struct Neighbors{SP<:SetProperty, NTH} <: AbstractVertexSet
     i::Int
 end
 
+const NearestNeighbors{SP} = Neighbors{SP, 1}
+const NeighborCover = Neighbors{CLOSED, 1}
+
 """
-    MirrorCover <: AbstractVertexSet
+    Mirrors{SP<:SetProperty} <: AbstractVertexSet
 
 Mirrors and itself. A vertex `w` is a mirror of `v` if `w ∈ N²(v)` and `N[v]\\N(w)` is a clique.
 """
-struct MirrorCover <: AbstractVertexSet
+struct Mirrors{SP<:SetProperty} <: AbstractVertexSet
     i::Int
 end
+const MirrorCover{SP} = Mirrors{CLOSED}
 
 struct Vertex<:AbstractVertexSet
     i::Int

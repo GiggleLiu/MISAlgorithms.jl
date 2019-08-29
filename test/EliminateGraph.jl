@@ -15,7 +15,7 @@ end
     @show eg
     nbs = neighbors(eg, 1)
     @test nbs == [2]
-    @test neighbors2(eg, 1, nbs) == [3,4]
+    @test neighbors2(eg, 1) == [3,4]
     @test neighborcover(eg, 1) == [1,2]
     @test nv(eg) == 4
 end
@@ -90,10 +90,18 @@ end
     g = K_eg(3)
     @test isclique(g)
 
-    nbs = neighbors(petersen_graph, 1)
-    @test mirrors(petersen_graph, 1, nbs) == []
+    @test mirrors(petersen_graph, 1) == []
     @test mirrorcover(petersen_graph, 1) == [1]
 
-    @test Set(mirrorcover(K_eg(3,3), 1)) == Set([1,2,3])
-    @test Set(mirrorcover(K_eg(3,3), 4)) == Set([4,5,6])
+    g = K_eg(3,3)
+    @test Set(mirrorcover(g, 1)) == Set([1,2,3])
+    @test Set(mirrorcover(g, 4)) == Set([4,5,6])
+
+    eliminate(g, MirrorCover(1)) do eg
+        @test check_validity(eg)
+        @test Set(vertices(eg)) == Set([4,5,6])
+    end
+    @test g == K_eg(3,3)
+
+    @test generate_set(g, Mirrors{OPEN}(1) ∪ Vertex(1)) == generate_set(g, MirrorCover(1))
 end
