@@ -11,5 +11,4 @@ using Test
                             0 0 0 1 0])
 
     @test mis1(graph) == 3
-    #@test mis2(graph) == 3
 end

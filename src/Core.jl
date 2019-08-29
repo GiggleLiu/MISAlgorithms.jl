@@ -1,6 +1,7 @@
 export SetProperty, CLOSED, OPEN
 export AbstractVertexSet, Neighbors, Mirrors, Vertex, UnionOf
 export NeighborCover, MirrorCover, NearestNeighbors
+export vertices, neighbors, neighborcover
 
 # Vertex Set Notations
 abstract type AbstractVertexSet end
@@ -45,3 +46,19 @@ struct UnionOf{TA, TB}<:AbstractVertexSet
     B::TB
 end
 Base.:∪(A::AbstractVertexSet, B::AbstractVertexSet) = UnionOf(A, B)
+
+function vertices end
+
+"""
+    neighbors(eg::EliminateGraph, i::Int)
+
+Get neighbors of vertex `i`.
+"""
+function neighbors end
+
+"""
+    neighborcover(eg::EliminateGraph, i::Int)
+
+Get neighbors of vertex `i`, including itself.
+"""
+function neighborcover end
