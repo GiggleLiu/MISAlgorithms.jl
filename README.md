@@ -17,7 +17,8 @@ julia> using MISAlgorithms
 
 julia> eg = rand_eg(60, 0.05);
 
-julia> mis1(eg)  # naive branching algorithm with O(1.44) complexity.
+julia> mis1(eg)  # naive branching algorithm with O(3^(n/3)) complexity.
+julia> mis1(eg)  # sofisticated branching algorithm with O(1.2852^N) complexity.
 ```
 
 ## References

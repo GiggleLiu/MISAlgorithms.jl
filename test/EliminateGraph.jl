@@ -6,7 +6,7 @@ using MISAlgorithms
     eg = EliminateGraph(tbl)
     @test check_validity(eg)
     @test eg == EliminateGraph(4,[1=>2, 2=>3,2=>4,3=>4])
-    @test collect(Vertices(eg)) == collect(1:4)
+    @test collect(vertices(eg)) == collect(1:4)
 
     @test subgraph(disconnected_cliques_eg(3,4), [1,2,3]) == K_eg(3)
     @test subgraph(K_eg(3,4), [1,2,3]) == empty_eg(3)
@@ -28,7 +28,7 @@ end
     eg = EliminateGraph(tbl .& tbl')
     @test degrees(eg) == [1, 3, 2, 2]
 
-    vs = Vertices(eg)
+    vs = vertices(eg)
     @test [vs...] == vertices(eg)
     @test vs[3] == vertices(eg)[3]
     vmin, dmin = mindegree_vertex(eg)

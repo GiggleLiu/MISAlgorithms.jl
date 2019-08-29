@@ -1,6 +1,6 @@
 export EliminateGraph, subgraph, refresh, check_validity
 export nv0, nv, ne0, ne
-export isconnected, unsafe_connect!, find_cluster
+export isconnected, unsafe_connect!, unsafe_disconnect!, find_cluster
 
 """
     EliminateGraph
@@ -127,6 +127,17 @@ function unsafe_connect!(eg::EliminateGraph, vi::Int, vj::Int)
     eg
 end
 
+"""
+    unsafe_disconnect!(eg::EliminateGraph, vi::Int, vj::Int) -> EliminateGraph
+
+connect two vertices.
+"""
+function unsafe_disconnect!(eg::EliminateGraph, vi::Int, vj::Int)
+    @inbounds eg.tbl[vi, vj] = false
+    @inbounds eg.tbl[vj, vi] = false
+    eg
+end
+
 function Base.show(io::IO, eg::EliminateGraph)
     N = nv0(eg)
     println(io, "EliminateGraph")
@@ -139,34 +150,34 @@ function Base.show(io::IO, eg::EliminateGraph)
     end
 end
 
-export Vertices, vertices, EliminatedVertices, eliminated_vertices, iseliminated
+export VertexIter, vertices, EliminatedVertexIter, eliminated_vertices, iseliminated
 
 """
-    Vertices{GT}<:AbstractArray{Int,1}
+    VertexIter{GT}<:AbstractArray{Int,1}
 
 Vertex enumerator for a graph.
 """
-struct Vertices{GT}<:AbstractArray{Int,1}
+struct VertexIter{GT}<:AbstractArray{Int,1}
     eg::GT
 end
 """vertices of a graph."""
-vertices(eg::EliminateGraph) = Vertices(eg)
-Base.length(vs::Vertices) = vs.eg.nv
-Base.getindex(vs::Vertices, i::Int) = vs.eg.vertices[end-vs.eg.nv+i]
+vertices(eg::EliminateGraph) = VertexIter(eg)
+Base.length(vs::VertexIter) = vs.eg.nv
+Base.getindex(vs::VertexIter, i::Int) = vs.eg.vertices[end-vs.eg.nv+i]
 
 """
-    EliminatedVertices{GT}<:AbstractArray{Int,1}
+    EliminatedVertexIter{GT}<:AbstractArray{Int,1}
 
 Eliminated vertex enumerator for a graph.
 """
-struct EliminatedVertices{GT}<:AbstractArray{Int,1}
+struct EliminatedVertexIter{GT}<:AbstractArray{Int,1}
     eg::GT
 end
-Base.length(vs::EliminatedVertices) = nv0(vs.eg)-vs.eg.nv
-Base.getindex(vs::EliminatedVertices, i::Int) = vs.eg.vertices[i]
+Base.length(vs::EliminatedVertexIter) = nv0(vs.eg)-vs.eg.nv
+Base.getindex(vs::EliminatedVertexIter, i::Int) = vs.eg.vertices[i]
 
 """eliminated vertices of a `EliminateGraph`."""
-eliminated_vertices(eg::EliminateGraph) = EliminatedVertices(eg)
+eliminated_vertices(eg::EliminateGraph) = EliminatedVertexIter(eg)
 
 """
     iseliminated(eg::EliminateGraph, i::Int) -> Bool
@@ -175,7 +186,7 @@ Return true if a vertex of a `EliminateGraph` is eliminated.
 """
 iseliminated(eg::EliminateGraph, i::Int) = i in eliminated_vertices(eg)
 
-for V in [:Vertices, :EliminatedVertices]
+for V in [:VertexIter, :EliminatedVertexIter]
     @eval Base.size(vs::$V) = (length(vs),)
     @eval Base.size(vs::$V, i::Int) = i==1 ? length(vs) : 1
     @eval Base.IteratorEltype(::Type{$V}) = Base.HasEltype()
@@ -183,7 +194,7 @@ for V in [:Vertices, :EliminatedVertices]
     @eval Base.eltype(vs::$V) = Int
     @eval Base.eltype(vs::Type{$V}) = Int
 
-    VI = V==:Vertices ? :(eg.vertices[end-eg.nv+state]) : :(eg.vertices[state])
+    VI = V==:VertexIter ? :(eg.vertices[end-eg.nv+state]) : :(eg.vertices[state])
     @eval function Base.iterate(vs::$V, state=1)
         eg = vs.eg
         if state > length(vs)

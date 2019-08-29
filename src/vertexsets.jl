@@ -37,9 +37,13 @@ end
 
 # 2nd nearest neighbors
 @inline function generate_set(eg::EliminateGraph, nnn::Neighbors{OPEN,2}, nbs)
-    return filter(j->j!=nnn.i && !isconnected(eg,j,nnn.i) && any(nb->isconnected(eg,nnn.i,nb), nbs), vertices(eg))
+    return filter(j->j!=nnn.i && !isconnected(eg,j,nnn.i) && any(nb->isconnected(eg,j,nb), nbs), vertices(eg))
 end
-generate_set(eg::EliminateGraph, nnn::Neighbors{OPEN,2}) = generate_set(eg,nnn,generate_set(eg,Neighbors{OPEN,1}(nnn.i)))
+
+@inline function generate_set(eg::EliminateGraph, nnn::Neighbors{CLOSED,2}, nbs)
+    return filter(j->j in nbs || any(nb->isconnected(eg,j,nb), nbs), vertices(eg))
+end
+generate_set(eg::EliminateGraph, nnn::Neighbors{SP,2} where SP) = generate_set(eg,nnn,generate_set(eg,Neighbors{OPEN,1}(nnn.i)))
 
 # nearest neighbors + itself
 @inline function generate_set(eg::EliminateGraph, nn::NearestNeighbors{CLOSED})
