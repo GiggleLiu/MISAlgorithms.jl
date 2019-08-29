@@ -1,5 +1,6 @@
-export EliminateGraph, rand_eg, refresh
-export nv0, nv, isconnected
+export EliminateGraph, refresh, check_validity
+export nv0, nv, ne0, ne
+export isconnected, unsafe_connect!
 
 """
     EliminateGraph
@@ -24,24 +25,78 @@ function EliminateGraph(tbl::Matrix{Bool})
     ptr = zeros(Int,N)
     EliminateGraph(tbl, vertices, ptr, 0, N)
 end
+function EliminateGraph(nv::Int, pairs::Vector{Pair{Int,Int}})
+    tbl = zeros(Bool, nv, nv)
+    for (vi, vj) in pairs
+        tbl[vi,vj] = true
+    end
+    return EliminateGraph(tbl .| tbl')
+end
 
 Base.copy(eg::EliminateGraph) = EliminateGraph(eg.tbl, eg.vertices |> copy, eg.ptr|>copy, eg.level, eg.nv)
+Base.:(==)(eg1::EliminateGraph, eg2::EliminateGraph) = eg1.tbl == eg2.tbl && Set(vertices(eg1)) == Set(vertices(eg2))
 
 """initial size of a `EliminateGraph`."""
 nv0(eg::EliminateGraph) = size(eg.tbl, 1)
+"""initial number of edges in a `EliminateGraph`."""
+ne0(eg::EliminateGraph) = sum(eg.tbl) ÷ 2
 """current size of a `EliminateGraph`."""
 nv(eg::EliminateGraph) = eg.nv
+"""current number of edges in a `EliminateGraph`."""
+function ne(eg::EliminateGraph)
+    res = 0
+    for vj in vertices(eg)
+        for vi in vertices(eg)
+            vi > vj && (res += isconnected(eg, vi, vj))
+        end
+    end
+    return res
+end
+
+"""
+A eliminate graph is valid.
+"""
+function check_validity(eg::EliminateGraph)
+    mes = ""
+    eg.tbl' == eg.tbl || (mes *= "connection table not symmetric\n")
+    !any(i->eg.tbl[i,i], 1:nv0(eg)) || (mes *= "diagonal part of table non-zero\n")
+    Set(eg.vertices) == Set(1:nv0(eg)) || (mes *= "vertices list incorrect\n")
+    0 <= eg.nv <= nv0(eg) || (mes *= "number of vertices not in range\n")
+    0 <= eg.level <= nv0(eg) || (mes *= "level not in range\n")
+    if eg.level > 0
+        eg.ptr[eg.level] == nv0(eg)-eg.nv || (mes *= "ptr points to incorrect position\n")
+        nv0(eg) >= eg.ptr[1] > 0 || (mes *= "ptr not in range\n")
+        all(diff(eg.ptr[1:eg.level]) .> 0) || (mes *= "non-increasing ptr")
+    end
+    if mes == ""
+        return true
+    else
+        println(mes)
+        return false
+    end
+end
 
 """undo elimination for a `EliminateGraph`."""
 refresh(eg::EliminateGraph) = EliminateGraph(eg.tbl)
 
 """
-    isconnected(eg::EliminateGraph, i::Int, j::Int) -> Bool
+    isconnected(eg::EliminateGraph, vi::Int, vj::Int) -> Bool
 
-Return true if `i`, `j` are connected in `eg`.
-Note: This function does not check `i`, `j` out of bound error!
+Return true if `vi`, `vj` are connected in `eg`.
+Note: This function does not check `vi`, `vj` out of bound error!
 """
-isconnected(eg::EliminateGraph, i::Int, j::Int) = @inbounds eg.tbl[i,j]
+isconnected(eg::EliminateGraph, vi::Int, vj::Int) = @inbounds eg.tbl[vi,vj]
+
+"""
+    unsafe_connect!(eg::EliminateGraph, vi::Int, vj::Int) -> EliminateGraph
+
+connect two vertices.
+"""
+function unsafe_connect!(eg::EliminateGraph, vi::Int, vj::Int)
+    @inbounds eg.tbl[vi, vj] = true
+    @inbounds eg.tbl[vj, vi] = true
+    eg
+end
 
 function Base.show(io::IO, eg::EliminateGraph)
     N = nv0(eg)
@@ -53,20 +108,6 @@ function Base.show(io::IO, eg::EliminateGraph)
         end
         println(io)
     end
-end
-
-"""
-    rand_eg(nv::Int, density::Real) -> EliminateGraph
-
-Generate a random `EliminateGraph`.
-"""
-function rand_eg(nv::Int, density::Real)
-    tbl = rand(nv, nv) .< density
-    copyltu!(tbl)
-    for i=1:nv
-        tbl[i,i] = false
-    end
-    EliminateGraph(tbl)
 end
 
 export Vertices, vertices, EliminatedVertices, eliminated_vertices, iseliminated
@@ -123,29 +164,4 @@ for V in [:Vertices, :EliminatedVertices]
             return vi, state+1
         end
     end
-end
-
-export neighborcover, neighborcover_mapreduce, mirrorcover
-
-"""
-    neighborcover(eg::EliminateGraph, vi::Int) -> EliminateGraph
-
-Return `vi` and its neighbors.
-"""
-@inline function neighborcover(eg::EliminateGraph, vi::Int)
-    return filter(vj->isconnected(eg,vj,vi) || vi==vj, vertices(eg))
-end
-
-function neighborcover_mapreduce(func, red, eg::EliminateGraph, vi::Int)
-    pre = func(vi)
-    for vj in vertices(eg)
-        if isconnected(eg,vj,vi)
-            # find a neighbor cover
-            pre = red(pre, func(vj))
-        end
-    end
-    return pre
-end
-
-function mirrorcover(eg::EliminateGraph, vi::Int)
 end

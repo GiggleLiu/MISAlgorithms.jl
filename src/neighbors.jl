@@ -1,4 +1,5 @@
-export neighbors, degrees, degree, mindegree_vertex, maxdegree_vertex, minmaxdegree_vertex
+export neighbors, neighbors2
+export degrees, degree, mindegree_vertex, maxdegree_vertex, minmaxdegree_vertex
 
 """
     neighbors(eg::EliminateGraph, i::Int)
@@ -8,6 +9,17 @@ Get neighbors of vertex `i`.
 function neighbors(eg::EliminateGraph, i::Int)
     return filter(j->isconnected(eg,j,i), vertices(eg))
 end
+
+"""
+    neighbors2(eg::EliminateGraph, i::Int, nbs)
+
+Get 2nd nearest neighbors, i.e. distance 2 vertices.
+"""
+function neighbors2(eg::EliminateGraph, i::Int, nbs)
+    return filter(j->j!=i && !isconnected(eg,j,i) && any(nb->isconnected(eg,i,nb), nbs), vertices(eg))
+end
+
+neighbors2(eg::EliminateGraph, i::Int) = neighbors2(eg,i,neighbors(eg,i))
 
 """Get degrees of all vertices in a graph."""
 degrees(eg::EliminateGraph) = degree.(Ref(eg), vertices(eg))
