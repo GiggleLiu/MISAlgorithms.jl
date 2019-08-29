@@ -41,26 +41,9 @@ function eliminate!(eg::EliminateGraph, vs)
     return eg
 end
 
-function eliminate!(eg::EliminateGraph, nc::NeighborCover)
-    N = nv0(eg)
-    @inbounds iptr = eg.level == 0 ? 0 : eg.ptr[eg.level]
-    iptr0 = iptr
-    for i in N-eg.nv+1:N
-        @inbounds vi = eg.vertices[i]
-        (vi == nc.i || isconnected(eg, vi, nc.i)) || continue
-        for j in N-eg.nv+1:N
-            @inbounds vj = eg.vertices[j]
-            if vj==vi
-                iptr += 1
-                eg.nv -= 1
-                unsafe_swap!(eg.vertices, j, iptr)
-                break
-            end
-        end
-    end
-    eg.level += 1
-    @inbounds eg.ptr[eg.level] = iptr
-    return eg
+# the fallback
+function eliminate!(eg::EliminateGraph, nc::AbstractVertexSet)
+    eliminate!(eg, generate_set(eg, nc))
 end
 
 """
@@ -87,10 +70,25 @@ function recover!(eg::EliminateGraph)
     eg
 end
 
-function eliminate!(eg::EliminateGraph, nc::MirrorCover)
-    eliminate!(eg, mirrorcover(eg, nc.i))
-end
-
-function eliminate!(eg::EliminateGraph, nc::UnionOf)
-    eliminate!(eg, mirrorcover(eg, nc.i))
+##################### Specialized ######################
+function eliminate!(eg::EliminateGraph, nc::NeighborCover)
+    N = nv0(eg)
+    @inbounds iptr = eg.level == 0 ? 0 : eg.ptr[eg.level]
+    iptr0 = iptr
+    for i in N-eg.nv+1:N
+        @inbounds vi = eg.vertices[i]
+        (vi == nc.i || isconnected(eg, vi, nc.i)) || continue
+        for j in N-eg.nv+1:N
+            @inbounds vj = eg.vertices[j]
+            if vj==vi
+                iptr += 1
+                eg.nv -= 1
+                unsafe_swap!(eg.vertices, j, iptr)
+                break
+            end
+        end
+    end
+    eg.level += 1
+    @inbounds eg.ptr[eg.level] = iptr
+    return eg
 end

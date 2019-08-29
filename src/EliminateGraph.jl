@@ -1,6 +1,6 @@
-export EliminateGraph, refresh, check_validity
+export EliminateGraph, subgraph, refresh, check_validity
 export nv0, nv, ne0, ne
-export isconnected, unsafe_connect!
+export isconnected, unsafe_connect!, find_cluster
 
 """
     EliminateGraph
@@ -86,6 +86,35 @@ Return true if `vi`, `vj` are connected in `eg`.
 Note: This function does not check `vi`, `vj` out of bound error!
 """
 isconnected(eg::EliminateGraph, vi::Int, vj::Int) = @inbounds eg.tbl[vi,vj]
+
+getid(eg::EliminateGraph, vi::Int) = findfirst(==(vi), vertices(eg))
+
+"""
+    find_cluster(eg::EliminateGraph, vi::Int) -> Vector{Int}
+
+Find the cluster connected to `vi` in `eg`.
+"""
+function find_cluster(eg::EliminateGraph, vi::Int)
+    vset = zeros(Bool, nv0(eg))
+    find_cluster!(eg, vi, vset)
+    return findall(!iszero, vset)
+end
+
+function find_cluster!(eg::EliminateGraph, vi::Int, vset::Vector{Bool})
+    vset[vi] && return
+
+    vset[vi] = true
+    for vj in neighbors(eg, vi)
+        find_cluster!(eg, vj, vset)
+    end
+end
+
+function isconnected(eg::EliminateGraph)
+    eg.nv <=1 && return true
+    length(find_cluster(eg, vertices(eg)[1])) == nv(eg)
+end
+
+subgraph(eg::EliminateGraph, vs) = EliminateGraph(eg.tbl[vs, vs])
 
 """
     unsafe_connect!(eg::EliminateGraph, vi::Int, vj::Int) -> EliminateGraph

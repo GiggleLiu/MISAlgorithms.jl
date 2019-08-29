@@ -7,6 +7,9 @@ using MISAlgorithms
     @test check_validity(eg)
     @test eg == EliminateGraph(4,[1=>2, 2=>3,2=>4,3=>4])
     @test collect(Vertices(eg)) == collect(1:4)
+
+    @test subgraph(disconnected_cliques_eg(3,4), [1,2,3]) == K_eg(3)
+    @test subgraph(K_eg(3,4), [1,2,3]) == empty_eg(3)
 end
 
 @testset "neighbors" begin
@@ -81,15 +84,27 @@ end
     @test eg.level == 0
 end
 
-@testset "mirrors" begin
+@testset "cluster and clique" begin
     # isclique
     g = disconnected_cliques_eg(3,4)
     @test isclique(g, [1,2,3])
     @test !isclique(g, [1,2,4])
     @test !isclique(g)
+
+    # findcluster
+    @test find_cluster(g, 1) == [1,2,3]
+    @test find_cluster(g, 4) == [4,5,6,7]
+    @test find_cluster(petersen_graph, 1) == collect(1:10)
+
+    # is connected
+    @test !isconnected(g)
+    @test isconnected(petersen_graph)
+
     g = K_eg(3)
     @test isclique(g)
+end
 
+@testset "mirrors" begin
     @test mirrors(petersen_graph, 1) == []
     @test mirrorcover(petersen_graph, 1) == [1]
 
