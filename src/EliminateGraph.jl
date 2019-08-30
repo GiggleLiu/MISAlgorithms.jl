@@ -45,9 +45,11 @@ nv(eg::EliminateGraph) = eg.nv
 """current number of edges in a `EliminateGraph`."""
 function ne(eg::EliminateGraph)
     res = 0
-    for vj in vertices(eg)
-        for vi in vertices(eg)
-            vi > vj && (res += isconnected(eg, vi, vj))
+    vs = vertices(eg)
+    for j in 1:nv(eg)
+        @inbounds vj = vs[j]
+        @inbounds for vi in vertices(eg)[j+1:end]
+            res += isconnected(eg, vi, vj)
         end
     end
     return res

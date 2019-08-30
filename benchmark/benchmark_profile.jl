@@ -20,3 +20,9 @@ using Random
 Random.seed!(2)
 eg = rand_eg(120, 0.1)
 @time mis2(eg)
+
+using Profile
+eg = rand_eg(80, 0.1)
+Profile.clear()
+Profile.init(delay=1e-3)
+@profile for i=1:30 mis2(eg) end

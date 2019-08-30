@@ -52,12 +52,13 @@ chain_eg(nv::Int) = EliminateGraph(nv,[vi=>vi+1 for vi=1:nv-1])
 ring_eg(nv::Int) = EliminateGraph(nv,[vi=>mod1(vi+1,nv) for vi=1:nv])
 
 # Special Graphs
-const petersen_graph = EliminateGraph(10,
+get_petersen_graph() = EliminateGraph(10,
                     [1=>2, 2=>3, 3=>4, 4=>5, 5=>1,
                     1=>6, 2=>7, 3=>8, 4=>9, 5=>10,
                     6=>8, 7=>9, 8=>10, 9=>1, 10=>2])
+const petersen_graph = get_petersen_graph()
 
-const c60_graph = EliminateGraph(60, [1=>10, 1=>41, 1=>59, 2=>12, 2=>42, 2=>60, 3=>6, 3=>
+get_c60_graph() = EliminateGraph(60, [1=>10, 1=>41, 1=>59, 2=>12, 2=>42, 2=>60, 3=>6, 3=>
         43, 3=>57, 4=>8, 4=>44, 4=>58, 5=>13, 5=>56, 5=>
         57, 6=>10, 6=>31, 7=>14, 7=>56, 7=>58, 8=>12, 8=>
         32, 9=>23, 9=>53, 9=>59, 10=>15, 11=>24, 11=>53, 11=>
@@ -72,3 +73,4 @@ const c60_graph = EliminateGraph(60, [1=>10, 1=>41, 1=>59, 2=>12, 2=>42, 2=>60, 
         40, 38=>50, 39=>40, 39=>51, 40=>52, 41=>47, 42=>
         48, 43=>49, 44=>50, 45=>46, 45=>54, 46=>55, 47=>
         54, 48=>55])
+const c60_graph = get_c60_graph()

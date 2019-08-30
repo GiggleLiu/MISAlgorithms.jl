@@ -7,11 +7,28 @@ function mis2(eg::EliminateGraph)
     if nv(eg) == 0
         #@show "0" # CHECKED
         return 0
+    elseif nv(eg) == 1
+        return 1
+    elseif nv(eg) == 2
+        return 2 - (@inbounds isconnected(eg, eg.vertices[end-1], eg.vertices[end]))
+    elseif nv(eg) == 3
+        @inbounds a, b, c = eg.vertices[end-2:end]
+        nedge = isconnected(eg, a, b) + isconnected(eg, a, c) + isconnected(eg, b, c)
+        if nedge == 0
+            return 3
+        elseif nedge == 3
+            return 1
+        else
+            return 2
+        end
     else
         #@show "1" # CHECKED
         vmin, degmin = mindegree_vertex(eg)
-        if degmin <= 1  # DONE
-            #@show "1.1" # CHECKED
+        if degmin == 0  # DONE
+            #@show "1.1(1)" # CHECKED
+            return 1 + eliminate(mis2, eg, vmin)
+        elseif degmin == 1  # DONE
+            #@show "1.1(2)" # CHECKED
             return 1 + eliminate(mis2, eg, NeighborCover(vmin))
         elseif degmin == 2
             #@show "1.2" # CHECKED
