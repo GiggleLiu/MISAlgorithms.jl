@@ -6,7 +6,7 @@ g1 = EliminateGraph(5, [1=>2, 2=>3, 2=>4, 3=>4, 4=>5])
 @test mis2(g1) == 3
 
 struct InfNum <: Number
-    n::Rational
+    n::Rational{Int}
 end
 
 ∅ = InfNum(-1)
@@ -15,7 +15,7 @@ const e = InfNum(0)
 const ∞ = InfNum(1)
 
 function Base.show(io::IO, inf::InfNum)
-    print(io, inf == ∅ ? "∅" : "∞($(inf.n))")
+    print(io,"∞($(inf == ∅ ? "∅" : inf.n))")
 end
 
 #Base.:^(a::InfNum, b::Int) = a == ∅ ? a : InfNum(a.n*b)
@@ -44,9 +44,27 @@ inferier_table(tbl) where X = map(σB -> isinferier(tbl, σB.I), CartesianIndice
 @test isinferier(tbl, (1,2,2,2,1))
 @test !isinferier(tbl, (1,1,1,1,1))
 
-isinferier(tbl, (1,2,2,2,1), (1,1,1,1,1))
 inferier_table(tbl, (1,1,1,1,1))
 inferier_table(tbl)
 
 @test sum(tbl .!= ∅) == 12
 @test sum(inferier_table(tbl)) == 32 - 12
+
+# show the part table, (a, b) are outer legs
+tbl = ein"ab,bc,cd,bd,de->ab"(T(1//1,1//3),T(1//3,1//2),T(1//2,1//3),T(1//3,1//3),T(1//3,1//1))
+
+@test sum(tbl .!= ∅) == 3
+@test isinferier(tbl, (1,2), (1,1))
+@test sum(inferier_table(tbl)) == 2
+
+# sub-graph: triangles
+# 1.2.1
+ein"ij,jk,ki->jk"(T(1//2,1//2), T(1//2,1//2), T(1//2,1//2))
+# 1.2.2.1
+ein"ij,ik,jl,kl->l"(T(1//2,1//2), T(1//2,1//2), T(1//2,1//2), T(1//2,1//2))
+# 1.2.2.2
+ein"ij,ik->jk"(T(1//2,1//1), T(1//2,1//1))
+
+# not working now, since gcd is not properly implemented for GPU, should be an easy fix.
+#using CuArrays
+#ein"ij,jk,ki->jk"(CuArray(T(1//2,1//2)), CuArray(T(1//2,1//2)), CuArray(T(1//2,1//2)))

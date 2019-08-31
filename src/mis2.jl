@@ -51,7 +51,8 @@ function mis2(eg::EliminateGraph)
                 else
                     #@show "1.2.2.2" # CHECKED
                     return max(1+eliminate(mis2, eg, NeighborCover(vmin)),
-                                eliminate(mis2, eg, MirrorCover(vmin)))
+                                2 + eliminate(mis2, eg, NeighborCover(a) ∪ NeighborCover(b)))  # this rule is discovered by factor graph
+                                #eliminate(mis2, eg, MirrorCover(vmin)))
                 end
             end
         elseif degmin == 3 # DONE
