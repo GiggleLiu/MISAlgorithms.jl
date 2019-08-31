@@ -65,6 +65,11 @@ ein"ij,ik,jl,kl->l"(T(1//2,1//2), T(1//2,1//2), T(1//2,1//2), T(1//2,1//2))
 # 1.2.2.2
 ein"ij,ik->jk"(T(1//2,1//1), T(1//2,1//1))
 
+# graph K33 + 1, verify the mirror rule: include v, or eliminate v and its mirrors.
+T33 = T(1//3, 1//3)
+T34 = T(1//3, 1//4)
+ein"ia,ib,ic,ja,jb,jc,ka,kb,kc,ab->ijk"(T34, T34, T33,T34,T34,T33,T34,T34,T33,T(1//4,1//4))
+
 # not working now, since gcd is not properly implemented for GPU, should be an easy fix.
 #using CuArrays
 #ein"ij,jk,ki->jk"(CuArray(T(1//2,1//2)), CuArray(T(1//2,1//2)), CuArray(T(1//2,1//2)))

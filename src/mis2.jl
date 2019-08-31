@@ -38,11 +38,17 @@ function mis2(eg::EliminateGraph)
                 return 1 + eliminate(mis2, eg, NeighborCover(vmin))
             else
                 #@show "1.2.2" # CHECKED
-                sn = neighbors2(eg, vmin)
+                n2nb = 0
+                w = 0
+                for vi in vertices(eg)
+                    if vi != vmin && (isconnected(eg, a, vi) || isconnected(eg, b, vi))
+                        n2nb += 1
+                        w = vi
+                    end
+                end
                 # NOTE: there is no degree one vertex!
-                if length(sn) == 1
+                if n2nb == 1
                     #@show "1.2.2.1" # CHECKED
-                    w = sn[1]
                     #return max(2+eliminate(mis2, eg, NeighborCover(w) ∪ Neighbors{CLOSED,2}(vmin)),
                                 #2+eliminate(mis2, eg, Neighbors{CLOSED,2}(vmin)),
                     # Note: it seems it must choose the latter. Gurantted if one removes one vertex, the MIS is non-increasing.
