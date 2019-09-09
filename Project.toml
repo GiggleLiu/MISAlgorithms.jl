@@ -3,6 +3,9 @@ uuid = "405e750c-c8cf-11e9-3887-a572dd575b1a"
 authors = ["JinGuo Liu"]
 version = "0.1.0"
 
+[deps]
+LightGraphs = "093fc24a-ae57-5d10-9952-331d41423f4d"
+
 [compat]
 julia = "1"
 

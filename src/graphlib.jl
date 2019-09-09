@@ -1,5 +1,6 @@
 export rand_eg, empty_eg, chain_eg, ring_eg, K_eg, disconnected_cliques_eg
-export petersen_graph, c60_graph
+export petersen_graph, c60_graph, get_petersen_graph, get_c60_graph
+export inverse_eg, smallworld_eg, random_regular_eg
 
 """
     K_eg(nv::Int, [nw]) -> EliminateGraph
@@ -9,6 +10,51 @@ fully connected graph, if `nw` provided, compute `K(nv,nw)` graph.
 K_eg(nv::Int) = rand_eg(nv, 1.0)
 K_eg(m::Int, n::Int) = EliminateGraph(m+n,vcat([vi=>vj for vi=1:m, vj=m+1:m+n]...))
 
+"""
+Inverse graph, arXiv: 1807.03739
+"""
+function inverse_eg(n::Int)
+    EliminateGraph(n, vcat([x=>mod1(x+1, n) for x=1:n], [x=>mod(-mod_inverse(x-1, n), n)+1 for x=2:n]))
+end
+
+"""
+
+"""
+function smallworld_eg(n::Int; ρ::Real)
+    longlinks = Pair{Int,Int}[]
+    for x=1:n, y=1:n
+        if abs(mod(x-y, n)) > 1 && rand() < ρ
+            push!(longlinks, x=>y)
+        end
+    end
+    EliminateGraph(n, vcat([x=>mod(x, n)+1 for x=1:n], longlinks))
+end
+
+function random_regular_eg(nv::Int, nreg::Int)
+    eg = empty_eg(nv)
+    g = random_regular_graph(nv, nreg)
+    for i in 1:nv
+        for j=g.fadjlist[i]
+            unsafe_connect!(eg,i,j)
+        end
+    end
+    return eg
+end
+
+"""
+    mod_inverse(x::Int, N::Int) -> Int
+Return `y` that `(x*y)%N == 1`, notice the `(x*y)%N` operations in Z* forms a group and this is the definition of inverse.
+"""
+function mod_inverse(x::Int, N::Int)
+    for i=1:N
+        (x*i)%N == 1 && return i
+    end
+    throw(ArgumentError("Can not find the inverse, $x is probably not in Z*($N)!"))
+end
+
+"""
+A graph consists of disconnected cliques.
+"""
 function disconnected_cliques_eg(nvs::Int...)
     N = sum(nvs)
     tbl = zeros(Bool, N, N)

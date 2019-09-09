@@ -1,4 +1,5 @@
 module MISAlgorithms
+import LightGraphs
 include("utils.jl")
 include("Core.jl")
 include("EliminateGraph.jl")
