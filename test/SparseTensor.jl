@@ -75,6 +75,7 @@ bst_zeros(::Type{Tv}, ::Type{Ti}, N::Int) where {Tv,Ti} = BinarySparseTensor{Tv,
 bst_zeros(::Type{Tv}, N::Int) where {Tv} = bst_zeros(Tv, Int64, N)
 
 Base.zero(t::BinarySparseTensor) = bst(SparseVector(t.data.n, t.data.nzind, zero(t.data.nzval)))
+Base.copy(t::BinarySparseTensor) = bst(SparseVector(t.data.n, copy(t.data.nzind), copy(t.data.nzval)))
 
 function Base.permutedims!(dest::BinarySparseTensor{Tv,Ti,N}, src::BinarySparseTensor{Tv,Ti,N}, dims::NTuple{N,Int}) where {Tv,Ti,N}
     nzind, nzval = findnz(src)
@@ -85,8 +86,9 @@ function Base.permutedims!(dest::BinarySparseTensor{Tv,Ti,N}, src::BinarySparseT
     return dest
 end
 
-function Base.permutedims(src::BinarySparseTensor{Tv,Ti,N}, dims::NTuple{N,Int}) where {Tv,Ti,N}
-    dest = zero(src)
+Base.permutedims!(dest::BinarySparseTensor{Tv,Ti,N}, src::BinarySparseTensor{Tv,Ti,N}, dims) where {Tv,Ti,N} = permutedims!(dest, src, (dims...,))
+function Base.permutedims(src::BinarySparseTensor{Tv,Ti,N}, dims) where {Tv,Ti,N}
+    dest = copy(src)
     Base.permutedims!(dest, src, dims)
 end
 
@@ -113,10 +115,13 @@ using Test
     @test t[bit"001"] == t[2,1,1] == 0 == t[cis[2,1,1]]
     @test t[bit"100"] == t[1,1,2] == 1 == t[cis[1,1,2]]
     @test permutedims(t, (2,1,3)) isa BinarySparseTensor
-    @test permutedims(t, (2,1,3)) == permutedims(Array(t), (2,1,3))
+    AT = Array(t)
+    @test permutedims(t, (2,1,3)) == permutedims(AT, (2,1,3))
+    @test t == AT
 
     m = zeros(Int, 2,2,2); m[[1,4,5]] .= 1
     @test Array(t) == m
+    @test vec(t) == vec(m)
     t[bit"001"] = 8
     @test t[bit"001"] == 8
     sv = SparseVector([1,0,0,1,1,0,0,0,1])

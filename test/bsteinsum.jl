@@ -23,7 +23,7 @@ using StaticArrays:MVector
 using Base.Cartesian
 using BitBasis
 
-function chasing_game(g, f, xs::NTuple{2}) where N
+function chasing_game(g, f, xs::NTuple{2,Vector}) where N
     xa, xb = xs
     la, lb = 1, 1
     while lb <= length(xb) && la <= length(xa)
@@ -86,34 +86,55 @@ using Random
     @test cg == naive_chase([1,2,2,3,3], [3,3,4])
 end
 
+@generated function ibcat(bits::NTuple{N, BitStr{M,T} where M}) where {N,T}
+    total_bits = BitBasis.sum_length(bits.parameters...)
+
+    quote
+        val, len = T(0), 0
+        @nexprs $N k->(val += buffer(bits[k]) << len; len += length(bits[k]))
+        return BitStr{$total_bits,T}(val)
+    end
+end
+
 function get_inner(::Val{Ni}, x::BitStr{N,T}) where {N, Ni, T}
     BitStr{Ni,T}(x >> (N-Ni))
 end
 
-function get_outer(::Val{Ni}, x::BitStr{N,T}) where {Ni,N,T}
-    BitStr{N-Ni,T}(x & bmask(1:N-Ni))
+function get_batch(::Val{Ni}, ::Val{Nb}, x::BitStr{N,T}) where {N, Ni, Nb, T}
+    BitStr{Nb,T}((x >> (N-Ni-Nb)) & bmask(1:Nb))
 end
 
-function get_outer(ni::Val{Ni}, xs::BitStr...) where {Ni}
-    bcat(get_outer.(ni, xs)...)
+function get_inner_and_batch(::Val{Ni}, ::Val{Nb}, x::BitStr{N,T}) where {N, Nb, Ni, T}
+    BitStr{Nb+Ni,T}(x >> (N-Nb-Ni))
+end
+
+function get_outer(::Val{Ni}, ::Val{Nb}, x::BitStr{N,T}) where {Ni,Nb,N,T}
+    BitStr{N-Ni-Nb,T}(x & bmask(1:N-Ni-Nb))
+end
+
+function get_outer(ni::Val{Ni}, nb::Val{Nb}, xs::BitStr...) where {Ni,Nb}
+    ibcat((get_outer.(ni, nb, xs)...,get_batch(ni, nb, xs[1])))
 end
 
 @testset "get inner, outer" begin
+    # indices are "iiiooobbb"
     @test get_inner(Val(2), bit"0001111") === bit"00"
-    @test get_outer(Val(2), bit"0001111") === bit"01111"
-    @test get_outer(Val(2), bit"0001111", bit"001") === bit"011111"
+    @test get_inner_and_batch(Val(2), Val(1), bit"0001111") === bit"000"
+    @test get_batch(Val(2), Val(1), bit"0001111") === bit"0"
+    @test get_outer(Val(2), Val(0), bit"0001111") === bit"01111"
+    @test get_outer(Val(2), Val(0), bit"0001111", bit"001") === bit"101111"
+    @test get_outer(Val(2), Val(1), bit"0001111", bit"000") === bit"01111"
 end
 
-function sparse_contract(ni::Val{Ni}, a::BinarySparseTensor{T1,Ti,M}, b::BinarySparseTensor{T2,Ti,N}) where {T1,T2,Ni,N,M,Ti}
-    out = get_output_array((a,b), (fill(2, M+N-2Ni)...,))
+function sparse_contract(ni::Val{Ni}, nb::Val{Nb}, a::BinarySparseTensor{T1,Ti,M}, b::BinarySparseTensor{T2,Ti,N}) where {T1,T2,Ni,Nb,N,M,Ti}
+    out = get_output_array((a,b), (fill(2, M+N-2Ni-Nb)...,))
     ia, va = findnz(a)
     ib, vb = findnz(b)
-    #chasing_game(x->get_inner(ni, x), (ia,ib)) do la, lb
-    for (la, lb) in naive_chase(get_inner.(ni, a), get_inner.(ni, b))
-        @show la, lb
+    chasing_game(x->get_inner_and_batch(ni, nb, x), (ia,ib)) do la, lb
+    # for (la, lb) in naive_chase(get_inner_and_batch.(ni, nb, ia), get_inner.(ni, nb, ib))
         inda, vala = ia[la], va[la]
         indb, valb = ib[lb], vb[lb]
-        indout = get_outer(ni, inda, indb)
+        indout = get_outer(ni, nb, inda, indb)
         out[indout] += vala*valb
     end
     return out
@@ -121,37 +142,80 @@ end
 
 @testset "sparse contract" begin
     Random.seed!(2)
-    ta = bstrand(4, 0.2)
-    tb = bstrand(4, 0.2)
+    ta = bstrand(4, 0.5)
+    tb = bstrand(4, 0.5)
     TA, TB = Array(ta), Array(tb)
-    @show sparse_contract(Val(2), ta, tb)
-    @test sum(sparse_contract(Val(2), ta, tb)) ≈ sum(ein"ijkl,ijmn->klmn"(TA, TB))
-    @test Array(sparse_contract(Val(2), ta, tb)) ≈ ein"ijkl,ijmn->klmn"(TA, TB)
+    @test sum(sparse_contract(Val(2), Val(0), ta, tb)) ≈ sum(ein"lkji,nmji->lknm"(TA, TB))
+    @test Array(sparse_contract(Val(2), Val(0), ta, tb)) ≈ ein"lkji,nmji->lknm"(TA, TB)
+
+    # batched
+    ta = bstrand(5, 0.5)
+    tb = bstrand(5, 0.5)
+    TA, TB = Array(ta), Array(tb)
+    @test sum(Array(sparse_contract(Val(2), Val(1), ta, tb))) ≈ sum(ein"lkbji,nmbji->lknmb"(TA, TB))
+    @test Array(sparse_contract(Val(2), Val(1), ta, tb)) ≈ ein"lkbji,nmbji->lknmb"(TA, TB)
 end
 
-# define einsum for both PairWise and PTrace with BinarySparseTensor to have those operations
-# dispatch to loop_einsum, since the default dispatch does not support BinarySparseTensor yet
-function einsum(::PairWise, code::EinCode{ixs, iy},
-            xs::NTuple{NT,BinarySparseTensor{<:OMEinsum.BLASTPYES}},
-            size_dict) where {ixs, iy, NT}
-    loop_einsum(code, xs, size_dict)
+# can be used in either static or dynamic invoke
+function analyse_batched_perm(iAs, iBs, iOuts)
+    iABs = iAs ∩ iBs
+    pres   = iABs ∩ iOuts
+    broad  = setdiff((iAs ∩ iOuts) ∪ (iBs ∩ iOuts), pres)
+    summed = setdiff(iABs, pres)
+
+    iAps, iAbs, iAss = pres ∩ iAs, broad ∩ iAs, summed ∩ iAs
+    iBps, iBbs, iBss = pres ∩ iBs, broad ∩ iBs, summed ∩ iBs
+
+    pA   = OMEinsum.indexpos.(Ref(iAs), vcat(iAbs, iAps, iAss))
+    pB   = OMEinsum.indexpos.(Ref(iBs), vcat(iBbs, iBps, iBss))
+    iABs = vcat(iAbs, iBbs, iAps)
+    pOut = OMEinsum.indexpos.(Ref(iABs), iOuts)
+
+    return pA, pB, pOut, length(iAss), length(iAps)
 end
 
-function einsum(::PTrace, code::EinCode{ixs, iy},
-            xs::NTuple{NT,BinarySparseTensor{<:OMEinsum.BLASTPYES}},
-            size_dict) where {ixs, iy, NT}
-    loop_einsum(code, xs, size_dict)
+@eval function OMEinsum.einsum(::OMEinsum.BatchedContract, code::EinCode{ixs, iy}, xs::NTuple{NT, BinarySparseTensor}, size_dict) where {NT, ixs, iy}
+    a, b = xs
+    pa, pb, pout, Ni, Nb = analyse_batched_perm(ixs..., iy)
+    A = copy(a)
+    B = copy(b)
+    a = permutedims(a, pa)
+    b = permutedims(b, pb)
+    out = sparse_contract(Val(Ni), Val(Nb), a, b)
+    permutedims(out, pout)
 end
 
-@eval function OMEinsum.einsum(::OMEinsum.BatchedContract, code::EinCode, xs::NTuple{NT, BinarySparseTensor{<:OMEinsum.BLASTPYES}}, size_dict) where {NT}
-    loop_einsum(code, xs, size_dict)
+function OMEinsum.einsum(sm::OMEinsum.EinRule, code::EinCode{ixs, iy}, xs::NTuple{NT, BinarySparseTensor}, size_dict) where {ixs, iy, NT}
+    throw(ArgumentError("Eincode $code not supported for BinarySparseTensor yet."))
+end
+function OMEinsum.einsum(sm::OMEinsum.MatMul, code::EinCode{ixs, iy}, xs::NTuple{NT, BinarySparseTensor}, size_dict) where {ixs, iy, NT}
+    einsum(OMEinsum.BatchedContract(), code, xs, size_dict)
 end
 
 @testset "einsum" begin
+    Random.seed!(2)
+
+    perms = analyse_batched_perm(('b','j','c','a','e'), ('k','d','c','a','e'), ('b','j','k','d','c'))
+    @test perms == ([1, 2, 3, 4, 5], [1, 2, 3, 4, 5], (1, 2, 3, 4, 5), 2, 1)
+
     sv = SparseVector([1.0,0,0,1,1,0,0,0])
     t1 = bst(sv)
     t2 = bst(sv)
     T1 = Array(t1)
     T2 = Array(t2)
     @test ein"ijk,jkl->il"(t1,t2) ≈ ein"ijk,jkl->il"(T1,T2)
+
+    ta = bstrand(2, 0.5)
+    tb = bstrand(2, 0.5)
+    TA, TB = Array(ta), Array(tb)
+    @test ein"ij,jk->ik"(ta,tb) ≈ ein"ij,jk->ik"(TA,TB)
+    @test ta == TA
+    @test tb == TB
+
+    ta = bstrand(7, 0.5)
+    tb = bstrand(6, 0.5)
+    TA, TB = Array(ta), Array(tb)
+    code = ein"ijklmbc,ijbxcy->bcmlxky"
+    @test OMEinsum.match_rule(code) == OMEinsum.BatchedContract()
+    @test Array(code(ta, tb)) ≈ code(TA, TB)
 end
