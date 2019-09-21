@@ -9,4 +9,5 @@ include("eliminate.jl")
 include("graphlib.jl")
 include("mis1.jl")
 include("mis2.jl")
+include("SparseTensors/BinarySparseTensor.jl")
 end # module

@@ -20,3 +20,7 @@ end
 @testset "mis2" begin
     include("mis2.jl")
 end
+
+@testset "binary sparse tensor" begin
+    include("SparseTensors/BinarySparseTensor.jl")
+end
