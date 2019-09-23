@@ -27,6 +27,7 @@ T(a::Rational, b::Rational) = [e InfNum(b); InfNum(a) ∅]
 
 # show the final result
 res = ein"ab,bc,cd,bd,de->"(T(1//1,1//3),T(1//3,1//2),T(1//2,1//3),T(1//3,1//3),T(1//3,1//1))[].n
+res = ein"(((ab,bc),cd),bd),de->"(T(1//1,1//3),T(1//3,1//2),T(1//2,1//3),T(1//3,1//3),T(1//3,1//1))[].n
 @test res == 3
 
 # show the full table

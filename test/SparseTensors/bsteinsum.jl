@@ -1,7 +1,7 @@
 using OMEinsum, MISAlgorithms, BitBasis
 using MISAlgorithms: get_outer, get_inner, get_inner_and_batch, get_batch, chasing_game
 using Test
-using Random
+using Random, SparseArrays
 
 function naive_chase(a::Vector{T}, b::Vector{T}) where T
     res = Tuple{Int,Int}[]
@@ -49,7 +49,7 @@ end
     @test Array(sparse_contract(Val(2), Val(1), ta, tb)) ≈ ein"lkbji,nmbji->lknmb"(TA, TB)
 end
 
-@testset "einsum" begin
+@testset "einsum batched contract" begin
     Random.seed!(2)
 
     perms = MISAlgorithms.analyse_batched_perm(('b','j','c','a','e'), ('k','d','c','a','e'), ('b','j','k','d','c'))
@@ -74,5 +74,68 @@ end
     TA, TB = Array(ta), Array(tb)
     code = ein"ijklmbc,ijbxcy->bcmlxky"
     @test OMEinsum.match_rule(code) == OMEinsum.BatchedContract()
-    @test Array(code(ta, tb)) ≈ code(TA, TB)
+    res = code(ta, tb)
+    @test res isa BinarySparseTensor
+    @test Array(res) ≈ code(TA, TB)
+end
+
+@testset "sum, ptrace and permute" begin
+    ta = bstrand(7, 0.5)
+    TA = Array(ta)
+    res = dropsum(ta, dims=(2,4))
+    @test res isa BinarySparseTensor
+    @test Array(res) ≈ dropsum(TA, dims=(2,4))
+    @test dropsum(ta) ≈ dropsum(TA)
+    @test sum(ta) ≈ sum(TA)
+    # sum
+    res = ein"ijklbca->"(ta)
+    @test res isa BinarySparseTensor
+    @test Array(res) == ein"ijklbca->"(TA)
+    res = ein"ijklbca->i"(ta)
+    @test res isa BinarySparseTensor
+    @test Array(res) == ein"ijklbca->ai"(TA)
+    # ptrace and trace
+    tb = bstrand(2, 1.0)
+    TB = Array(tb)
+    res = ein"ii->"(tb)
+    @test res isa BinarySparseTensor
+    @test Array(res) == ein"ii->"(TB)
+    @test OMEinsum.match_rule(ein"ijjlbca->ailcb") == OMEinsum.PTrace()
+    res = ein"ijjlbca->ailcb"(ta)
+    @test res isa BinarySparseTensor
+    @test Array(res) == ein"ijjlbca->ailcb"(TA)
+
+    # permute
+    res = ein"ijklbca->abcijkl"(ta)
+    @test res isa BinarySparseTensor
+    @test Array(res) ≈ ein"ijklbca->abcijkl"(TA)
+end
+
+@testset "clean up tensors" begin
+    ta = bstrand(7, 0.5)
+    TA = Array(ta)
+    # first reduce indices
+    code = ein"iikjjjj->ikj"
+    res = code(ta)
+    @test res isa BinarySparseTensor
+    @test res ≈ code(TA)
+end
+
+@testset "clean up" begin
+    @test MISAlgorithms._ymask_from_reds(Int, 5, [[2,3], [4,1]]) == bmask(5,2,4)
+    @test !OMEinsum.match_rule(MISAlgorithms.IndexReduction(), ein"ijk->ijk")
+    @test OMEinsum.match_rule(MISAlgorithms.IndexReduction(), ein"ijkj->ijk")
+    @test !OMEinsum.match_rule(MISAlgorithms.IndexReduction(), ein"ijkjl->ijk")
+
+    @test allsame(bit"000110", bmask(BitStr64{6}, 2,3))
+    @test !allsame(bit"000110", bmask(BitStr64{6}, 2,4))
+    @test MISAlgorithms._get_reductions((1,2,2,4,3,1,5), (1,2,3,4,5)) == [[1,6], [2,3]]
+
+    @test MISAlgorithms.getalllabels(ein"ijk,jkl->oo") == ['i', 'j', 'k', 'l', 'o']
+    @test MISAlgorithms.getuniquein(ein"ijk,jkl->oo", 1) == ['i']
+    @test MISAlgorithms.getuniquein(ein"ijk,jkl->oo", 2) == ['l']
+    @test MISAlgorithms.getuniqueout(ein"ijk,jkl->oo") == ['o']
+    @test MISAlgorithms.getdupin(ein"ijk,jkl->oo", 1) == []
+    @test MISAlgorithms.getdupin(ein"ijk,jkl->oo", 2) == []
+    @test MISAlgorithms.getdupout(ein"ijk,jkl->oo") == ['o']
 end

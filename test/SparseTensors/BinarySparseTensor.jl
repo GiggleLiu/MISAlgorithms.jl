@@ -42,8 +42,8 @@ using Test, Random
 end
 
 @testset "sort and permute" begin
-    @test MISAlgorithms.bpermute(0b1100, [2,4,3,1]) === 0b0110
-    @test MISAlgorithms.bpermute(0b1100, [4,2,3,1]) === 0b0101
+    @test bpermute(0b1100, [2,4,3,1]) === 0b0110
+    @test bpermute(0b1100, [4,2,3,1]) === 0b0101
     @test bpermute(bit"1100", [2,4,3,1]) === bit"0110"
     @test bpermute(bit"1100", [4,2,3,1]) === bit"0101"
     @test sort(BitStr64{5}[1,8,4,2,9]) == sort([1,8,4,2,9])

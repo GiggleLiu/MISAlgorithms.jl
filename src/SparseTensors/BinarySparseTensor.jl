@@ -64,8 +64,14 @@ SparseArrays.findnz(t::BinarySparseTensor{Tv,Ti,N}) where {Tv,Ti,N} = findnz(Bit
 function SparseArrays.findnz(::Type{T}, t::BinarySparseTensor) where T
     convert.(T, t.data.nzind.-1), t.data.nzval
 end
+SparseArrays.nonzeroinds(t::BinarySparseTensor{Tv,Ti,N}) where {Tv, Ti, N} = convert.(BitStr{N,Ti}, t.data.nzind.-1)
+SparseArrays.nonzeros(t::BinarySparseTensor{Tv,Ti,N}) where {Tv, Ti, N} = t.data.nzval
+Base.Array(t::BinarySparseTensor{Tv,Ti,1}) where {Tv,Ti} = Base.Array(t.data)
 
 Base.show(io::IO, ::MIME"text/plain", t::BinarySparseTensor) = Base.show(io, t)
+function Base.show(io::IOContext, t::BinarySparseTensor{T,Ti,1}) where {T,Ti,N}
+    invoke(show, Tuple{IO,BinarySparseTensor}, io, t)
+end
 function Base.show(io::IO, t::BinarySparseTensor{T,Ti,N}) where {T,Ti,N}
     NNZ = length(t.data.nzind)
     println(io, "$(summary(t)) with $(nnz(t)) stored entries:")
@@ -100,4 +106,6 @@ function bstrand(ndim::Int, density::Real)
     bst(sprand(1<<ndim, density))
 end
 
+include("patches.jl")
+include("bsteinsum.jl")
 include("bsteinsum.jl")

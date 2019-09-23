@@ -45,16 +45,6 @@ function chasing_game(xs::NTuple)
     return res
 end
 
-@generated function ibcat(bits::NTuple{N, BitStr{M,T} where M}) where {N,T}
-    total_bits = BitBasis.sum_length(bits.parameters...)
-
-    quote
-        val, len = T(0), 0
-        @nexprs $N k->(val += buffer(bits[k]) << len; len += length(bits[k]))
-        return BitStr{$total_bits,T}(val)
-    end
-end
-
 function get_inner(::Val{Ni}, x::BitStr{N,T}) where {N, Ni, T}
     BitStr{Ni,T}(x >> (N-Ni))
 end
@@ -89,24 +79,6 @@ function sparse_contract(ni::Val{Ni}, nb::Val{Nb}, a::BinarySparseTensor{T1,Ti,M
     return out
 end
 
-# can be used in either static or dynamic invoke
-function analyse_batched_perm(iAs, iBs, iOuts)
-    iABs = iAs ∩ iBs
-    pres   = iABs ∩ iOuts
-    broad  = setdiff((iAs ∩ iOuts) ∪ (iBs ∩ iOuts), pres)
-    summed = setdiff(iABs, pres)
-
-    iAps, iAbs, iAss = pres ∩ iAs, broad ∩ iAs, summed ∩ iAs
-    iBps, iBbs, iBss = pres ∩ iBs, broad ∩ iBs, summed ∩ iBs
-
-    pA   = OMEinsum.indexpos.(Ref(iAs), vcat(iAbs, iAps, iAss))
-    pB   = OMEinsum.indexpos.(Ref(iBs), vcat(iBbs, iBps, iBss))
-    iABs = vcat(iAbs, iBbs, iAps)
-    pOut = OMEinsum.indexpos.(Ref(iABs), iOuts)
-
-    return pA, pB, pOut, length(iAss), length(iAps)
-end
-
 @eval function OMEinsum.einsum(::OMEinsum.BatchedContract, code::EinCode{ixs, iy}, xs::NTuple{NT, BinarySparseTensor}, size_dict) where {NT, ixs, iy}
     a, b = xs
     pa, pb, pout, Ni, Nb = analyse_batched_perm(ixs..., iy)
@@ -118,9 +90,6 @@ end
     permutedims(out, pout)
 end
 
-function OMEinsum.einsum(sm::OMEinsum.EinRule, code::EinCode{ixs, iy}, xs::NTuple{NT, BinarySparseTensor}, size_dict) where {ixs, iy, NT}
-    throw(ArgumentError("Eincode $code not supported for BinarySparseTensor yet."))
-end
 function OMEinsum.einsum(sm::OMEinsum.MatMul, code::EinCode{ixs, iy}, xs::NTuple{NT, BinarySparseTensor}, size_dict) where {ixs, iy, NT}
     einsum(OMEinsum.BatchedContract(), code, xs, size_dict)
 end
