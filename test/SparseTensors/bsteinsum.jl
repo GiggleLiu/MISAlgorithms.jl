@@ -80,7 +80,7 @@ end
 end
 
 @testset "sum, ptrace and permute" begin
-    ta = bstrand(7, 0.5)
+    ta = bstrand(7, 0.7)
     TA = Array(ta)
     res = dropsum(ta, dims=(2,4))
     @test res isa BinarySparseTensor
@@ -90,20 +90,34 @@ end
     # sum
     res = ein"ijklbca->"(ta)
     @test res isa BinarySparseTensor
-    @test Array(res) == ein"ijklbca->"(TA)
+    @test Array(res) ≈ ein"ijklbca->"(TA)
     res = ein"ijklbca->i"(ta)
     @test res isa BinarySparseTensor
-    @test Array(res) == ein"ijklbca->ai"(TA)
-    # ptrace and trace
+    @test Array(res) ≈ ein"ijklbca->i"(TA)
+
+    # trace
     tb = bstrand(2, 1.0)
     TB = Array(tb)
     res = ein"ii->"(tb)
     @test res isa BinarySparseTensor
-    @test Array(res) == ein"ii->"(TB)
+    @test Array(res) ≈ ein"ii->"(TB)
     @test OMEinsum.match_rule(ein"ijjlbca->ailcb") == OMEinsum.PTrace()
+
+    # reduction
+    code = ein"ijjlbbb->ijlb"
+    res = code(ta)
+    @test res isa BinarySparseTensor
+    @test Array(res) ≈ code(TA)
+    code = ein"ijjlbbb->ljbi"
+    res = code(ta)
+    @test res isa BinarySparseTensor
+    @test Array(res) ≈ code(TA)
+
+    # ptrace
     res = ein"ijjlbca->ailcb"(ta)
     @test res isa BinarySparseTensor
-    @test Array(res) == ein"ijjlbca->ailcb"(TA)
+    @test Array(res) |> sum ≈ ein"ijjlbca->ailcb"(TA) |> sum
+    @test Array(res) ≈ ein"ijjlbca->ailcb"(TA)
 
     # permute
     res = ein"ijklbca->abcijkl"(ta)
@@ -115,10 +129,11 @@ end
     ta = bstrand(7, 0.5)
     TA = Array(ta)
     # first reduce indices
-    code = ein"iikjjjj->ikj"
-    res = code(ta)
-    @test res isa BinarySparseTensor
-    @test res ≈ code(TA)
+    for code in [ein"iiiiiii->iiiiii", ein"iikjjjj->ikj", ein"iikjjjl->ikj"]
+        res = code(ta)
+        @test res isa BinarySparseTensor
+        @test res ≈ code(TA)
+    end
 end
 
 @testset "clean up" begin
@@ -132,10 +147,13 @@ end
     @test MISAlgorithms._get_reductions((1,2,2,4,3,1,5), (1,2,3,4,5)) == [[1,6], [2,3]]
 
     @test MISAlgorithms.getalllabels(ein"ijk,jkl->oo") == ['i', 'j', 'k', 'l', 'o']
-    @test MISAlgorithms.getuniquein(ein"ijk,jkl->oo", 1) == ['i']
-    @test MISAlgorithms.getuniquein(ein"ijk,jkl->oo", 2) == ['l']
-    @test MISAlgorithms.getuniqueout(ein"ijk,jkl->oo") == ['o']
-    @test MISAlgorithms.getdupin(ein"ijk,jkl->oo", 1) == []
-    @test MISAlgorithms.getdupin(ein"ijk,jkl->oo", 2) == []
-    @test MISAlgorithms.getdupout(ein"ijk,jkl->oo") == ['o']
 end
+
+
+@testset "count legs" begin
+    @test MISAlgorithms.count_legs((1,2), (2,3), (1,3)) == Dict(1=>2,2=>2,3=>2)
+    @test MISAlgorithms.dangling_legs(((1,1,2), (2,3)), (5,7)) == (((), (2,)), (1,2))
+    @test MISAlgorithms.dangling_nleg_labels(((1,1,2), (2,3)), (5,7)) == (((1,), (3,)), (5,7))
+end
+
+MISAlgorithms.unset(bit"111100", bit"001101") == bit"110000"

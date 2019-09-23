@@ -7,6 +7,7 @@ version = "0.1.0"
 BitBasis = "50ba71b6-fa0f-514d-ae9a-0916efc90dcf"
 OMEinsum = "ebe7aa44-baf0-506c-a96f-8464559b3922"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+TupleTools = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
 
 [compat]
 julia = "1"

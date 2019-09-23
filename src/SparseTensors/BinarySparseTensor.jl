@@ -107,5 +107,5 @@ function bstrand(ndim::Int, density::Real)
 end
 
 include("patches.jl")
-include("bsteinsum.jl")
-include("bsteinsum.jl")
+include("batched_gemm.jl")
+include("index_reduction.jl")

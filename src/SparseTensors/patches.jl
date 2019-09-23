@@ -1,3 +1,4 @@
+export allin
 # can be used in either static or dynamic invoke
 function analyse_batched_perm(iAs, iBs, iOuts)
     iABs = iAs ∩ iBs
@@ -16,6 +17,7 @@ function analyse_batched_perm(iAs, iBs, iOuts)
     return pA, pB, pOut, length(iAss), length(iAps)
 end
 
+############ BitBasis
 @generated function ibcat(bits::NTuple{N, BitStr{M,T} where M}) where {N,T}
     total_bits = BitBasis.sum_length(bits.parameters...)
 
@@ -26,41 +28,45 @@ end
     end
 end
 
+export allsame
+allsame(x::T, mask::T) where T<:Integer = allone(x, mask) || !anyone(x, mask)
+
 ######################### index manipulation
 function count_legs(ixs::(NTuple{N,T} where N)...) where {T}
-    keys, vals = T[], Int[]
+    lc = Dict{T,Int}()
     for l in Iterators.flatten(ixs)
-        res = findfirst(==(l), keys)
-        if res === nothing
-            push!(keys, l)
-            push!(vals, 1)
-        else
-            vals[res] += 1
-        end
+        lc[l] = get(lc, l, 0) + 1
     end
-    return LEGCOUNT{(keys...,), (vals...,)}
-end
-
-struct LEGCOUNT{lbs, ns} end
-function Base.getindex(::Type{LEGCOUNT{lbs, ns}}, lb) where {lbs, ns}
-    ns[findfirst(==(lb), lbs)]
+    return lc
 end
 
 """
 return positions of dangling legs.
 """
-function dangling_legs(ixs, iy, lc::Type{<:LEGCOUNT}=count_legs(ixs, iy))
-    _dlegs.(ixs, lc), _dlegs(iy, lc)
+function dangling_legs(ixs, iy, lc=count_legs(ixs..., iy))
+    _dlegs.(ixs, Ref(lc)), _dlegs(iy, lc)
 end
 _dlegs(ix, lc) = (findall(iix->lc[iix] == 1, [ix...])...,)
+
+"""
+return positions of dangling legs.
+"""
+function dangling_nleg_labels(ixs, iy, lc=count_legs(ixs..., iy))
+    _dnlegs.(ixs, Ref(lc)), _dnlegs(iy, lc)
+end
+function _dnlegs(ix, lc)
+    (unique(filter(iix->count(==(iix), ix)==lc[iix], [ix...]))...,)
+end
 
 function dumplicated_legs(ix)
     labels = OMEinsum.tunique(ix)
     findall(l->count(==(l), ix)>1, labels)
 end
 
-using Test
-lc = MISAlgorithms.LEGCOUNT{(1,2,3), (6,7,8)}
-@test lc[2] == 7
-@test MISAlgorithms.count_legs(((1,2), (2,3)), (1,3)) == LEGCOUNT{(1,2,3), (2,2,2)}
-@test MISAlgorithms.dangling_legs(((1,2), (2,3)), (5,7)) == (((1,), (2,)), (1,2))
+function getalllabels(code::EinCode{ixs, iy}) where {ixs, iy}
+    reduce(∪, (ixs..., iy))
+end
+
+function allin(x, y)
+    all(xi->xi in y, x)
+end
