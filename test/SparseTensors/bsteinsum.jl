@@ -126,12 +126,22 @@ end
 end
 
 @testset "clean up tensors" begin
-    ta = bstrand(7, 0.5)
+    ta = bstrand(1, 1.0)
     TA = Array(ta)
     # first reduce indices
+    for code in [ein"i->iii", ein"i->jj", ein"k->kkj"]
+        res = code(ta, size_info=IndexSize('j'=>2))
+        @show code
+        @test res isa BinarySparseTensor
+        @show size(res), size(code(TA, size_info=IndexSize('j'=>2)))
+        @test res ≈ code(TA, size_info=IndexSize('j'=>2))
+    end
+    ta = bstrand(7, 0.5)
+    TA = Array(ta)
     for code in [ein"iiiiiii->iiiiii", ein"iikjjjj->ikj", ein"iikjjjl->ikj"]
         res = code(ta)
         @test res isa BinarySparseTensor
+        @show size(res), size(code(TA))
         @test res ≈ code(TA)
     end
 end
@@ -141,6 +151,11 @@ end
     @test !OMEinsum.match_rule(MISAlgorithms.IndexReduction(), ein"ijk->ijk")
     @test OMEinsum.match_rule(MISAlgorithms.IndexReduction(), ein"ijkj->ijk")
     @test !OMEinsum.match_rule(MISAlgorithms.IndexReduction(), ein"ijkjl->ijk")
+    @test OMEinsum.match_rule(MISAlgorithms.IndexCopy(), ein"ij->iij")
+    @test !OMEinsum.match_rule(MISAlgorithms.IndexCopy(), ein"ij->iijk")
+    @test !OMEinsum.match_rule(MISAlgorithms.IndexBroadcast(), ein"ijl->ikkijl")
+    @test !OMEinsum.match_rule(MISAlgorithms.IndexBroadcast(), ein"ikj->kijl")
+    @test OMEinsum.match_rule(MISAlgorithms.IndexBroadcast(), ein"ikj->ikjl")
 
     @test allsame(bit"000110", bmask(BitStr64{6}, 2,3))
     @test !allsame(bit"000110", bmask(BitStr64{6}, 2,4))
@@ -156,4 +171,5 @@ end
     @test MISAlgorithms.dangling_nleg_labels(((1,1,2), (2,3)), (5,7)) == (((1,), (3,)), (5,7))
 end
 
-MISAlgorithms.unset(bit"111100", bit"001101") == bit"110000"
+MISAlgorithms.unsetbit(bit"111100", bit"001101") == bit"110000"
+MISAlgorithms.copybits(0b110, ((1,2), (5,4), (3,))) == 0b11100

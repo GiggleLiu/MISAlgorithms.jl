@@ -12,54 +12,92 @@ function OMEinsum.einsum(sm::OMEinsum.Sum, code::EinCode{ixs, iy}, xs::Tuple{<:B
     perm == iy ? res : permutedims(res, perm)
 end
 
-function OMEinsum.einsum(sm::OMEinsum.DefaultRule, code::EinCode{ixs, iy}, xs::NTuple{NT, BinarySparseTensor}, size_dict) where {ixs, iy, NT}
+function cleanup_dangling_nlegs(ixs, xs, iy)
     lc = count_legs(ixs..., iy)
     danglegsin, danglegsout = dangling_nleg_labels(ixs, iy, lc)
     newxs = Any[xs...]
     newixs = Any[ixs...]
     newiy = iy
-    ycode = Any[]
-    for i = 1:NT
+    for i = 1:length(xs)
         ix, dlx = newixs[i], danglegsin[i]
         if !isempty(dlx)
             newxs[i] = multidropsum(xs[i], dims=[findall(==(l), ix) for l in dlx])
-            #newixs[i] = TupleTools.deleteat(newixs[i], dlx)
             newixs[i] = (filter(l->l∉dlx, [ix...])...,)
         end
     end
     if !isempty(danglegsout)
-        newiy = ([l for l in newiy if l ∉ danglegout]...,)
-        pushfirst!(ycode, EinCode{(newiy,), iy}())
+        newiy = ([l for l in newiy if l ∉ danglegsout]...,)
     end
-    for i in 1:NT
-        ix = newixs[i]
+    return newixs, newxs, newiy
+end
+
+function cleanup_dumplicated_legs(ixs, xs, iy)
+    newxs = Any[xs...]
+    newixs = Any[ixs...]
+    for i in 1:length(xs)
+        ix = ixs[i]
         if !allunique(ix)
             newix = (tunique(ix)...,)
-            newxs[i] = einsum(IndexReduction(), EinCode{(ix,), newix}(), (newxs[i],), size_dict)
+            newxs[i] = einsum(IndexReduction(), EinCode{(ix,), newix}(), (xs[i],), OMEinsum.get_size_dict((ix,), (xs[i],)))
             newixs[i] = newix
         end
     end
-    newnewiy = newiy
-    if !allunique(newnewiy)
-        newnewiy = (tunique(newnewiy)...,)
-        pushfirst!(ycode, EinCode{(newnewiy,), newiy}())
+    newiy = iy
+    if !allunique(newiy)
+        newiy = (tunique(newiy)...,)
     end
+    return newixs, newxs, newiy
+end
+
+function OMEinsum.einsum(sm::OMEinsum.DefaultRule, code::EinCode{ixs, iy}, xs::NTuple{NT, BinarySparseTensor}, size_dict) where {ixs, iy, NT}
+    if OMEinsum.match_rule(IndexCopy(), code)
+        return einsum(IndexCopy(), code, xs, size_dict)
+    elseif OMEinsum.match_rule(IndexBroadcast(), code)
+        return einsum(IndexBroadcast(), code, xs, size_dict)
+    end
+    # dangling legs or multi-legs
+    ycode = []
+    newixs, newxs, newiy = cleanup_dangling_nlegs(ixs, xs, iy)
+    newiy!=iy && pushfirst!(ycode, EinCode{(newiy,), iy}())
+    newixs, newxs, newnewiy = cleanup_dumplicated_legs(newixs, newxs, newiy)
+    newiy!=newnewiy && pushfirst!(ycode, EinCode{(newnewiy,), newiy}())
+    @show ycode
+    newixs == ixs && newnewiy == iy && throw(ArgumentError("Einsum not implemented for $code"))
+    # dangling merge multi-legs to one leg
     res = einsum(EinCode{(newixs...,), newnewiy}(), newxs, size_dict)
     for code in ycode
         # TODO: broadcast and duplicate
-        @show code
         res = einsum(code, (res,), size_dict)
     end
     return res
 end
 
 struct IndexReduction<:OMEinsum.EinRule{1} end
+struct IndexCopy<:OMEinsum.EinRule{1} end
+struct IndexBroadcast<:OMEinsum.EinRule{1} end
 
 function OMEinsum.match_rule(::IndexReduction, code::EinCode{ixs, iy}) where {ixs, iy}
     length(ixs) > 1 && return false
     ix = ixs[1]
     (allunique(ix) || !allunique(iy)) && return false
     allin(iy, ix) && allin(ix, iy) || return false
+    return true
+end
+
+function OMEinsum.match_rule(::IndexCopy, code::EinCode{ixs, iy}) where {ixs, iy}
+    length(ixs) > 1 && return false
+    ix = ixs[1]
+    (!allunique(ix) || allunique(iy)) && return false
+    allin(iy, ix) && allin(ix, iy) || return false
+    return true
+end
+
+function OMEinsum.match_rule(::IndexBroadcast, code::EinCode{ixs, iy}) where {ixs, iy}
+    length(ixs) > 1 && return false
+    ix = ixs[1]
+    !allunique(ix) && return false
+    allin(ix, iy) || return false
+    filter(iiy->(iiy in ix), [iy...]) == [ix...] || return false
     return true
 end
 
@@ -81,6 +119,16 @@ end
 
 function OMEinsum.einsum(sm::IndexReduction, code::EinCode{ixs, iy}, xs::Tuple{<:BinarySparseTensor}, size_dict) where {ixs, iy}
     reduce_indices(xs[1], _get_reductions(ixs[1], iy))
+end
+
+function OMEinsum.einsum(sm::IndexCopy, code::EinCode{ixs, iy}, xs::Tuple{<:BinarySparseTensor}, size_dict) where {ixs, iy}
+    ix = ixs[1]
+    copy_indices(xs[1], map(l->(findall(==(l), iy)...,), ix))
+end
+
+function OMEinsum.einsum(sm::IndexBroadcast, code::EinCode{ixs, iy}, xs::Tuple{<:BinarySparseTensor}, size_dict) where {ixs, iy}
+    ix = ixs[1]
+    throw(ArgumentError("Not implemented"))
 end
 
 function OMEinsum.einsum(sm::OMEinsum.PTrace, code::EinCode{ixs, iy}, xs::Tuple{<:BinarySparseTensor}, size_dict) where {ixs, iy}
@@ -126,6 +174,31 @@ function reduce_indices(t::BinarySparseTensor{Tv,Ti}, reds) where {Tv,Ti}
     end
     order = sortperm(inds)
     return BinarySparseTensor(SparseVector(1<<length(bits), inds[order], vals[order]))
+end
+
+function copy_indices(t::BinarySparseTensor{Tv,Ti}, targets) where {Tv,Ti}
+    inds = Ti[]
+    vals = Tv[]
+    nbits = sum(length, targets)
+    for (ind, val) in zip(t.data.nzind, t.data.nzval)
+        b = ind-1
+        b = copybits(b, targets)
+        push!(inds, b+1)
+        push!(vals, val)
+    end
+    order = sortperm(inds)
+    @show nbits
+    return BinarySparseTensor(SparseVector(1<<nbits, inds[order], vals[order]))
+end
+
+function copybits(b::Ti, targets) where Ti
+    res = Ti(0)
+    for (i,t) in enumerate(targets)
+        for it in t
+            res |= readbit(b, i)<<(it-1)
+        end
+    end
+    return res
 end
 
 function trace_indices(t::BinarySparseTensor{Tv,Ti}; dims) where {Tv,Ti}
